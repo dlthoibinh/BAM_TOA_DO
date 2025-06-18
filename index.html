@@ -1,20 +1,139 @@
-<!DOCTYPE html><html lang="vi">
+<!DOCTYPE html>
+<html lang="vi">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tra cứu Q-Charge</title>
-<link rel="stylesheet" href="style.css">
-</head><body>
-  <h1>Tiền Công Suất Phản Kháng</h1>
-  <input id="inpMa" placeholder="Nhập mã KH…" autofocus>
-  <button id="btnTra">Tra cứu</button>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thông Tin Trạm CC và CD</title>
+  <style>
+    body { font-family: Arial,sans-serif; margin:20px; }
+    h1 { font-size:24px; color:#004a99; margin-bottom:16px; }
+    input {
+      font-size:18px; width:100%; padding:10px;
+      border:1px solid #ccc; border-radius:5px;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom:10px;
+    }
+    ul {
+      list-style:none; padding:0; margin:0 0 20px;
+      border:1px solid #ccc; border-radius:5px;
+      max-height:200px; overflow-y:auto;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+    }
+    li {
+      padding:10px; cursor:pointer; border-bottom:1px solid #ddd;
+    }
+    li:last-child { border-bottom:none; }
+    li:hover { background:#f0f0f0; }
+    .loading { text-align:center; color:#555; }
+    table {
+      width:100%; border-collapse:collapse; margin-top:20px;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding:10px; border:1px solid #ddd; text-align:left;
+    }
+    th { background:#e6f2ff; color:#004a99; }
+  </style>
+</head>
+<body>
+  <h1>Thông Tin Trạm CC và CD</h1>
+  <input type="text" id="input" placeholder="Nhập mã trạm hoặc tên trạm...">
+  <ul id="suggestions"></ul>
+  <div id="result"></div>
 
-  <section id="secData" hidden>
-    <h2>Kết quả 30 ngày</h2>
-    <button id="btnCSV">Tải CSV</button>
-    <table id="tbl"></table>
-    <canvas id="chart"></canvas>
-  </section>
+  <!-- CryptoJS MD5 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <script>
+    // 1. Thay URL Web App của bạn vào chỗ này
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbwsj0yT4UvIehpK7kdXOV4g4ghQKzhD3yGrVif_S-NLKd2zfGcbG4t15-iIGd3yC1H0YA/exec';
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="app.js"></script>
-</body></html>
+    const input = document.getElementById('input');
+    const suggestions = document.getElementById('suggestions');
+    const resultDiv = document.getElementById('result');
+
+    // Lưu cookie (để khỏi hỏi lại tầm 30 phút)
+    function setCookie(name, value, mins) {
+      const d = new Date();
+      d.setTime(d.getTime() + mins*60*1000);
+      document.cookie = `${name}=${value}; expires=${d.toUTCString()}; path=/`;
+    }
+    function getCookie(name) {
+      return document.cookie.split('; ').reduce((r,c)=>{
+        const [k,v]=c.split('='); return k===name?v:r;
+      }, null);
+    }
+
+    // Hỏi mật khẩu và kiểm tra với API
+    async function askPassword() {
+      while (true) {
+        const pw = prompt('Vui lòng nhập mật khẩu:');
+        if (!pw) continue;
+        const hash = CryptoJS.MD5(pw).toString();
+        const res = await fetch(`${apiUrl}?password=${encodeURIComponent(hash)}`);
+        const j = await res.json();
+        if(res.ok && !j.error) {
+          setCookie('pwHash', hash, 30);
+          return hash;
+        }
+        alert('Mật khẩu không hợp lệ!');
+      }
+    }
+    async function ensurePassword() {
+      const c = getCookie('pwHash');
+      return c || await askPassword();
+    }
+
+    // Debounce cho gợi ý
+    let timer;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      suggestions.innerHTML = '';
+      if (!input.value.trim()) return;
+      timer = setTimeout(() => fetchSuggestions(input.value.trim()), 500);
+    });
+
+    // Lấy gợi ý
+    async function fetchSuggestions(q) {
+      const pw = await ensurePassword();
+      suggestions.innerHTML = '<li class="loading">Đang tải...</li>';
+      const res = await fetch(`${apiUrl}?query=${encodeURIComponent(q)}&password=${pw}`);
+      const j = await res.json();
+      suggestions.innerHTML = '';
+      (j.suggestions||[]).forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = `${item.code} – ${item.name}`;
+        li.onclick = () => {
+          input.value = item.code;
+          suggestions.innerHTML = '';
+          fetchDetails(item.code);
+        };
+        suggestions.appendChild(li);
+      });
+      if(!(j.suggestions||[]).length) {
+        suggestions.innerHTML = '<li class="loading">Không tìm thấy</li>';
+      }
+    }
+
+    // Lấy chi tiết
+    async function fetchDetails(id) {
+      const pw = await ensurePassword();
+      resultDiv.innerHTML = '<p class="loading">Đang tải chi tiết…</p>';
+      const res = await fetch(`${apiUrl}?id=${encodeURIComponent(id)}&password=${pw}`);
+      const j = await res.json();
+      if(j.error) {
+        resultDiv.innerHTML = `<p style="color:red;">${j.error}</p>`;
+        return;
+      }
+      let html = '<table><thead><tr><th>Thông tin</th><th>Giá trị</th></tr></thead><tbody>';
+      Object.entries(j).forEach(([k,v]) => {
+        html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      resultDiv.innerHTML = html;
+    }
+
+    // Init: đảm bảo đã có mật khẩu trước khi nhập
+    ensurePassword();
+  </script>
+</body>
+</html>
