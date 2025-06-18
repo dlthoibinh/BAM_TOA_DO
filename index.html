@@ -1,0 +1,20 @@
+<!DOCTYPE html><html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tra cứu Q-Charge</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+  <h1>Tiền Công Suất Phản Kháng</h1>
+  <input id="inpMa" placeholder="Nhập mã KH…" autofocus>
+  <button id="btnTra">Tra cứu</button>
+
+  <section id="secData" hidden>
+    <h2>Kết quả 30 ngày</h2>
+    <button id="btnCSV">Tải CSV</button>
+    <table id="tbl"></table>
+    <canvas id="chart"></canvas>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="app.js"></script>
+</body></html>
