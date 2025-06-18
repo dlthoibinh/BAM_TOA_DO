@@ -1,102 +1,206 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Thông Tin Trạm CC và CD</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thông Tin PHAN KHANG</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:20px}
-    h1{color:#004a99;margin-bottom:16px}
-    input{width:100%;padding:10px;font-size:18px;border:1px solid #ccc;border-radius:5px;margin-bottom:10px}
-    ul{list-style:none;padding:0;margin:0 0 20px;border:1px solid #ccc;border-radius:5px;max-height:200px;overflow-y:auto}
-    li{padding:10px;border-bottom:1px solid #ddd;cursor:pointer}
-    li:last-child{border-bottom:none}
-    li:hover{background:#f0f0f0}
-    .loading{text-align:center;color:#555;margin:10px 0}
-    table{width:100%;border-collapse:collapse;margin-top:20px}
-    th,td{padding:10px;border:1px solid #ddd;text-align:left}
-    th{background:#e6f2ff;color:#004a99}
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    input {
+      font-size: 18px;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 5px 0 20px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    li {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #ddd;
+    }
+
+    li:last-child {
+      border-bottom: none;
+    }
+
+    li:hover {
+      background-color: #f0f0f0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    table th, table td {
+      text-align: left;
+      padding: 10px;
+      border: 1px solid #ddd;
+    }
+
+    table th {
+      background-color: #f7f7f7;
+      font-weight: bold;
+    }
+
+    .result-container {
+      margin-top: 20px;
+    }
+
+    .loading {
+      text-align: center;
+      font-size: 16px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
-  <h1>Thông Tin Trạm CC và CD</h1>
-  <input id="input" placeholder="Nhập mã trạm hoặc tên trạm...">
+  <h1>Thông Tin PHAN KHANG</h1>
+  <input type="text" id="input" placeholder="Nhập mã KH...">
   <ul id="suggestions"></ul>
-  <div id="result"></div>
 
-  <!-- CryptoJS MD5 -->
+  <div class="result-container" id="result"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script>
-    // THAY '‹YOUR_DEPLOY_ID›' bằng ID bạn lấy từ bước Deploy
-    const API_URL = 'https://script.google.com/macros/s/AKfycbwsj0yT4UvIehpK7kdXOV4g4ghQKzhD3yGrVif_S-NLKd2zfGcbG4t15-iIGd3yC1H0YA/exec';
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbwsj0yT4UvIehpK7kdXOV4g4ghQKzhD3yGrVif_S-NLKd2zfGcbG4t15-iIGd3yC1H0YA/exec'; // Thay bằng URL Web App của bạn
 
-    // Lưu / đọc localStorage
-    function savePW(h){ localStorage.setItem('pw', h) }
-    function loadPW(){ return localStorage.getItem('pw') }
+    const input = document.getElementById('input');
+    const suggestionsList = document.getElementById('suggestions');
+    const resultDiv = document.getElementById('result');
 
-    // Hỏi mật khẩu MD5, kiểm tra với API
-    async function askPW(){
-      while(true){
-        const pw = prompt('Vui lòng nhập mật khẩu:');
-        if(!pw) continue;
-        const hash = CryptoJS.MD5(pw).toString();
-        const res  = await fetch(`${API_URL}?password=${hash}`);
-        const j    = await res.json();
-        if(res.ok && !j.error){
-          savePW(hash);
-          return hash;
+    let debounceTimeout; // Biến lưu timeout cho debounce
+
+    function setCookie(name, value, minutes) {
+      const date = new Date();
+      date.setTime(date.getTime() + (minutes * 60 * 1000));
+      document.cookie = `${name}=${value}; expires=${date.toUTCString()}; path=/`;
+    }
+
+    function getCookie(name) {
+      const cookies = document.cookie.split('; ');
+      for (const cookie of cookies) {
+        const [key, value] = cookie.split('=');
+        if (key === name) return value;
+      }
+      return null;
+    }
+
+    async function askForPassword() {
+      let password;
+      while (true) {
+        password = prompt('Vui lòng nhập mật khẩu:');
+        if (!password) continue;
+
+        const hashedPassword = CryptoJS.MD5(password).toString();
+        const response = await fetch(`${apiUrl}?password=${encodeURIComponent(hashedPassword)}`);
+        const data = await response.json();
+
+        if (response.ok && !data.error) {
+          setCookie('password', hashedPassword, 30); // Save password for 30 minutes
+          return hashedPassword;
+        } else {
+          alert('Mật khẩu không hợp lệ!');
         }
-        alert('Mật khẩu không hợp lệ!');
       }
     }
-    async function getPW(){
-      return loadPW() || await askPW();
+
+    async function ensurePassword() {
+      let password = getCookie('password');
+      if (!password) {
+        password = await askForPassword();
+      }
+      return password;
     }
 
-    const inp  = document.getElementById('input');
-    const ul   = document.getElementById('suggestions');
-    const divR = document.getElementById('result');
-    let debounce;
+    input.addEventListener('input', async (e) => {
+      const query = e.target.value.trim();
 
-    inp.addEventListener('input',()=>{
-      clearTimeout(debounce);
-      ul.innerHTML='';
-      if(!inp.value.trim()) return;
-      debounce = setTimeout(()=> fetchSuggest(inp.value.trim()), 300);
+      // Hủy timeout cũ nếu người dùng tiếp tục nhập
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+
+      // Đặt timeout mới để chờ 1 giây
+      debounceTimeout = setTimeout(async () => {
+        if (query.length > 0) {
+          const password = await ensurePassword();
+          fetchSuggestions(query, password);
+        } else {
+          suggestionsList.innerHTML = '';
+        }
+      }, 1000); // 1000ms = 1s
     });
 
-    async function fetchSuggest(q){
-      ul.innerHTML = '<li class="loading">Đang tải...</li>';
-      const pw = await getPW();
-      const res = await fetch(`${API_URL}?query=${encodeURIComponent(q)}&password=${pw}`);
-      const j   = await res.json();
-      ul.innerHTML = '';
-      const list = j.suggestions || [];
-      if(!list.length) ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
-      list.forEach(x=>{
-        const li = document.createElement('li');
-        li.textContent = `${x.code} – ${x.name}`;
-        li.onclick = ()=>{ inp.value=x.code; ul.innerHTML=''; fetchDetail(x.code) };
-        ul.appendChild(li);
-      });
+    async function fetchSuggestions(query, password) {
+      suggestionsList.innerHTML = '<div class="loading">Đang tải...</div>';
+      const response = await fetch(`${apiUrl}?query=${query}&password=${encodeURIComponent(password)}`);
+      const data = await response.json();
+
+      // Xóa các gợi ý cũ
+      suggestionsList.innerHTML = '';
+
+      // Thêm gợi ý mới
+      if (data.suggestions && data.suggestions.length > 0) {
+        data.suggestions.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = `${item.code} - ${item.name}`;
+          li.addEventListener('click', async () => {
+            input.value = item.code;
+            suggestionsList.innerHTML = '';
+            const password = await ensurePassword();
+            fetchDetails(item.code, password);
+          });
+          suggestionsList.appendChild(li);
+        });
+      }
     }
 
-    async function fetchDetail(id){
-      divR.innerHTML = '<p class="loading">Đang tải chi tiết…</p>';
-      const pw = await getPW();
-      const res = await fetch(`${API_URL}?id=${encodeURIComponent(id)}&password=${pw}`);
-      const j   = await res.json();
-      if(j.error){
-        divR.innerHTML = `<p style="color:red">${j.error}</p>`;
-        return;
+    async function fetchDetails(id, password) {
+      resultDiv.innerHTML = '<div class="loading">Đang tải...</div>';
+      const response = await fetch(`${apiUrl}?id=${id}&password=${encodeURIComponent(password)}`);
+      const data = await response.json();
+
+      // Hiển thị dữ liệu dạng bảng
+      if (!data.error) {
+        let tableHTML = '<table><thead><tr><th>Thông tin</th><th>Giá trị</th></tr></thead><tbody>';
+
+        for (const [key, value] of Object.entries(data)) {
+          const formattedValue = typeof value === 'string'
+            ? value.replace(/\n/g, '<br>').replace(/\t/g, '&emsp;') // Replace \n and \t
+            : value;
+          tableHTML += `<tr><td>${key}</td><td>${formattedValue}</td></tr>`;
+        }
+
+        tableHTML += '</tbody></table>';
+        resultDiv.innerHTML = tableHTML;
+      } else {
+        resultDiv.innerHTML = `<p style="color: red;">${data.error}</p>`;
       }
-      let html = '<table><thead><tr><th>Thuộc tính</th><th>Giá trị</th></tr></thead><tbody>';
-      Object.entries(j).forEach(([k,v])=>{
-        html += `<tr><td>${k}</td><td>${v}</td></tr>`;
-      });
-      html += '</tbody></table>';
-      divR.innerHTML = html;
     }
+
+    // Ensure password on page load
+    ensurePassword();
   </script>
+
 </body>
 </html>
