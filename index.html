@@ -66,9 +66,11 @@
     // Hỏi mật khẩu (mã KH), MD5 rồi verify
     async function askPW() {
       while (true) {
-        const p = prompt('Nhập mật khẩu (mã KH):');
+        let p = prompt('Nhập mật khẩu (mã KH):');
         if (!p) continue;
+        p = p.trim().toUpperCase();
         const h = CryptoJS.MD5(p).toString();
+
         const r = await fetch(`${API}?password=${h}`);
         const j = await r.json();
         if (r.ok && !j.error) {
