@@ -25,8 +25,8 @@
 <body>
   <h1>Tra cứu Q-Charge</h1>
 
-  <label>Từ ngày:<input type="date" id="fromDate"></label>
-  <label>Đến ngày:<input type="date" id="toDate"></label><br>
+  <label>Từ ngày: <input type="date" id="fromDate"></label>
+  <label>Đến ngày: <input type="date" id="toDate"></label><br>
 
   <input id="input" placeholder="Nhập mã KH..." disabled>
   <button id="btnSearch" disabled>Tra cứu</button>
@@ -34,53 +34,54 @@
   <ul id="suggestions"></ul>
   <div id="result"></div>
 
+  <!-- CryptoJS MD5 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script>
+    // Thay ID của anh vào đây:
     const API = 'https://script.google.com/macros/s/AKfycbzMx2ZQZ8VIv5Ov4txQYWlE1N4BVVxVB8R2QUjsct3wvNQIpYLUIcpj7m8svXGX-AsXhw/exec';
 
-    // Thiết lập ngày mặc định: từ 1 → hôm nay
+    // Thiết lập ngày mặc định: 1 → hôm nay
     const fd = document.getElementById('fromDate'),
           td = document.getElementById('toDate');
     (()=>{
-      const n = new Date(), y = n.getFullYear(),
-            m = String(n.getMonth()+1).padStart(2,'0'),
-            d = String(n.getDate()).padStart(2,'0');
+      const n=new Date(), y=n.getFullYear(),
+            m=String(n.getMonth()+1).padStart(2,'0'),
+            d=String(n.getDate()).padStart(2,'0');
       fd.value = `${y}-${m}-01`;
       td.value = `${y}-${m}-${d}`;
     })();
 
-    // Lưu & load mật khẩu + timestamp
-    function savePW(h) {
+    // Lưu & load mật khẩu + timestamp (30 phút)
+    function savePW(h){
       localStorage.setItem('pw', h);
       localStorage.setItem('pw_time', Date.now());
     }
-    function loadPW() {
+    function loadPW(){
       const h = localStorage.getItem('pw');
-      const t = parseInt(localStorage.getItem('pw_time') || '0', 10);
-      if (h && Date.now() - t < 30 * 60 * 1000) return h;
+      const t = parseInt(localStorage.getItem('pw_time')||'0',10);
+      if(h && Date.now() - t < 30*60*1000) return h;
       localStorage.removeItem('pw');
       localStorage.removeItem('pw_time');
       return null;
     }
 
-    // Hỏi mật khẩu (mã KH), MD5 rồi verify
-    async function askPW() {
-      while (true) {
+    // Hỏi mật khẩu (mã KH) trước khi cho phép tìm kiếm
+    async function askPW(){
+      while(true){
         let p = prompt('Nhập mật khẩu (mã KH):');
-        if (!p) continue;
+        if(!p) continue;
         p = p.trim().toUpperCase();
         const h = CryptoJS.MD5(p).toString();
-
         const r = await fetch(`${API}?password=${h}`);
         const j = await r.json();
-        if (r.ok && !j.error) {
+        if(r.ok && !j.error){
           savePW(h);
           return h;
         }
         alert('Mật khẩu không hợp lệ!');
       }
     }
-    async function ensurePW() {
+    async function ensurePW(){
       return loadPW() || await askPW();
     }
 
@@ -90,8 +91,8 @@
           res = document.getElementById('result');
     let timer;
 
-    // Khởi tạo: bắt nhập mật khẩu trước
-    (async function init() {
+    // Khởi tạo: bắt nhập mật khẩu, rồi mở khóa input & nút
+    (async function init(){
       await ensurePW();
       inp.disabled = false;
       btn.disabled = false;
@@ -99,51 +100,53 @@
       inp.addEventListener('input', ()=>{
         clearTimeout(timer);
         ul.innerHTML = '';
-        if (!inp.value.trim()) return;
+        if(!inp.value.trim()) return;
         timer = setTimeout(()=> fetchSuggest(inp.value.trim()), 300);
       });
       btn.addEventListener('click', ()=>{
-        if (!inp.value.trim()) return alert('Nhập mã KH trước!');
+        if(!inp.value.trim()) return alert('Nhập mã KH trước!');
         fetchDetail(inp.value.trim());
       });
     })();
 
-    // Gợi ý
-    async function fetchSuggest(q) {
+    // Lấy gợi ý fuzzy
+    async function fetchSuggest(q){
       ul.innerHTML = '<li class="loading">Đang tải…</li>';
       const pw = await ensurePW();
       const r  = await fetch(`${API}?query=${encodeURIComponent(q)}&password=${pw}`);
       const j  = await r.json();
       ul.innerHTML = '';
-      (j.suggestions || []).forEach(x => {
+      (j.suggestions||[]).forEach(x=>{
         const li = document.createElement('li');
         li.textContent = `${x.code} – ${x.name}`;
-        li.onclick = () => { inp.value = x.code; ul.innerHTML = ''; fetchDetail(x.code); };
+        li.onclick = ()=>{ inp.value=x.code; ul.innerHTML=''; fetchDetail(x.code); };
         ul.appendChild(li);
       });
-      if (!(j.suggestions || []).length) ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
+      if(!(j.suggestions||[]).length) ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
     }
 
-    // Chi tiết
-    async function fetchDetail(code) {
+    // Lấy chi tiết với khoảng ngày, tính cosφ & Q-Charge, highlight cosφ<0.9
+    async function fetchDetail(code){
       res.innerHTML = '<p class="loading">Đang tải dữ liệu…</p>';
       const pw   = await ensurePW();
       const from = fd.value, to = td.value;
       const url  = `${API}?id=${encodeURIComponent(code)}&from=${from}&to=${to}&password=${pw}`;
       const r    = await fetch(url);
       const j    = await r.json();
-      if (j.error) {
-        res.innerHTML = `<p style="color:red">${j.error}</p>`; return;
+      if(j.error){
+        res.innerHTML = `<p style="color:red">${j.error}</p>`;
+        return;
       }
-      const arr = j.data || [];
-      if (!arr.length) {
-        res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>'; return;
+      const arr = j.data||[];
+      if(!arr.length){
+        res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>';
+        return;
       }
       let html = '<table><thead><tr>'
                +'<th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th>'
                +'<th>Đơn giá (₫/kVArh)</th><th>Tiền Q (₫)</th>'
                +'</tr></thead><tbody>';
-      arr.forEach(r => {
+      arr.forEach(r=>{
         const low = r.COSPHI < 0.9;
         html += `<tr class="${low?'low':''}">`
              + `<td>${r.DATE}</td>`
