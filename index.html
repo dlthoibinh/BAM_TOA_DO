@@ -1,32 +1,31 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Tra cứu Q-Charge</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { color: #004a99; margin-bottom: 16px; }
-    label { font-size: 14px; margin-right: 8px; }
-    input, button { padding: 8px; font-size: 16px; margin: 4px 0; }
-    input[type=date] { width: auto; }
-    #input { width: 200px; border: 1px solid #ccc; border-radius: 4px; }
-    button { background: #004a99; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    ul { list-style: none; padding: 0; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; max-height: 150px; overflow: auto; }
-    li { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
-    li:hover { background: #f0f0f0; }
-    .loading { padding: 8px; color: #555; text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th, td { padding: 8px; border: 1px solid #ddd; text-align: center; }
-    th { background: #e6f2ff; color: #004a99; }
-    tr.low { background: #ffe5e5; }
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tra cứu Q-Charge</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:20px}
+  h1{color:#004a99;margin-bottom:16px}
+  label{font-size:14px;margin-right:8px}
+  input,button{padding:8px;font-size:16px;margin:4px 0}
+  input[type=date]{width:auto}
+  #input{width:200px;border:1px solid #ccc;border-radius:4px}
+  button{background:#004a99;color:#fff;border:none;border-radius:4px;cursor:pointer}
+  ul{list-style:none;padding:0;margin:8px 0;border:1px solid #ccc;border-radius:4px;max-height:150px;overflow:auto}
+  li{padding:8px;border-bottom:1px solid #eee;cursor:pointer}
+  li:hover{background:#f0f0f0}
+  .loading{padding:8px;color:#555;text-align:center}
+  table{width:100%;border-collapse:collapse;margin-top:16px}
+  th,td{padding:8px;border:1px solid #ddd;text-align:center}
+  th{background:#e6f2ff;color:#004a99}
+  tr.low{background:#ffe5e5}
+</style>
 </head>
 <body>
   <h1>Tra cứu Q-Charge</h1>
 
-  <label>Từ ngày: <input type="date" id="fromDate"></label>
-  <label>Đến ngày: <input type="date" id="toDate"></label><br>
+  <label>Từ ngày:<input type="date" id="fromDate"></label>
+  <label>Đến ngày:<input type="date" id="toDate"></label><br>
 
   <input id="input" placeholder="Nhập mã KH..." disabled>
   <button id="btnSearch" disabled>Tra cứu</button>
@@ -34,131 +33,77 @@
   <ul id="suggestions"></ul>
   <div id="result"></div>
 
-  <!-- CryptoJS MD5 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script>
-    // Thay ID của anh vào đây:
     const API = 'https://script.google.com/macros/s/AKfycbzMx2ZQZ8VIv5Ov4txQYWlE1N4BVVxVB8R2QUjsct3wvNQIpYLUIcpj7m8svXGX-AsXhw/exec';
 
-    // Thiết lập ngày mặc định: 1 → hôm nay
-    const fd = document.getElementById('fromDate'),
-          td = document.getElementById('toDate');
+    // default dates
+    const fd=document.getElementById('fromDate'), td=document.getElementById('toDate');
     (()=>{
-      const n=new Date(), y=n.getFullYear(),
-            m=String(n.getMonth()+1).padStart(2,'0'),
-            d=String(n.getDate()).padStart(2,'0');
-      fd.value = `${y}-${m}-01`;
-      td.value = `${y}-${m}-${d}`;
+      const n=new Date(), y=n.getFullYear(), m=('0'+(n.getMonth()+1)).slice(-2), d=('0'+n.getDate()).slice(-2);
+      fd.value=`${y}-${m}-01`; td.value=`${y}-${m}-${d}`;
     })();
 
-    // Lưu & load mật khẩu + timestamp (30 phút)
-    function savePW(h){
-      localStorage.setItem('pw', h);
-      localStorage.setItem('pw_time', Date.now());
-    }
-    function loadPW(){
-      const h = localStorage.getItem('pw');
-      const t = parseInt(localStorage.getItem('pw_time')||'0',10);
-      if(h && Date.now() - t < 30*60*1000) return h;
-      localStorage.removeItem('pw');
-      localStorage.removeItem('pw_time');
-      return null;
-    }
-
-    // Hỏi mật khẩu (mã KH) trước khi cho phép tìm kiếm
+    // enable after correct password
+    const inp=document.getElementById('input'), btn=document.getElementById('btnSearch'),
+          ul=document.getElementById('suggestions'), res=document.getElementById('result');
     async function askPW(){
       while(true){
-        let p = prompt('Nhập mật khẩu (mã KH):');
+        let p=prompt('Nhập mật khẩu (mã KH):');
         if(!p) continue;
-        p = p.trim().toUpperCase();
-        const h = CryptoJS.MD5(p).toString();
-        const r = await fetch(`${API}?password=${h}`);
-        const j = await r.json();
-        if(r.ok && !j.error){
-          savePW(h);
-          return h;
-        }
+        p=p.trim().toUpperCase();
+        const r=await fetch(`${API}?password=${encodeURIComponent(p)}`);
+        const j=await r.json();
+        if(r.ok && !j.error) return;
         alert('Mật khẩu không hợp lệ!');
       }
     }
-    async function ensurePW(){
-      return loadPW() || await askPW();
-    }
-
-    const inp = document.getElementById('input'),
-          btn = document.getElementById('btnSearch'),
-          ul  = document.getElementById('suggestions'),
-          res = document.getElementById('result');
-    let timer;
-
-    // Khởi tạo: bắt nhập mật khẩu, rồi mở khóa input & nút
-    (async function init(){
-      await ensurePW();
-      inp.disabled = false;
-      btn.disabled = false;
-
-      inp.addEventListener('input', ()=>{
-        clearTimeout(timer);
-        ul.innerHTML = '';
-        if(!inp.value.trim()) return;
-        timer = setTimeout(()=> fetchSuggest(inp.value.trim()), 300);
+    (async()=>{
+      await askPW();
+      inp.disabled=false; btn.disabled=false;
+      let t;
+      inp.addEventListener('input',()=>{
+        clearTimeout(t);
+        ul.innerHTML='';
+        if(!inp.value) return;
+        t=setTimeout(()=>fetchSuggest(inp.value.trim().toUpperCase()),300);
       });
-      btn.addEventListener('click', ()=>{
-        if(!inp.value.trim()) return alert('Nhập mã KH trước!');
-        fetchDetail(inp.value.trim());
-      });
+      btn.onclick=()=> inp.value?fetchDetail(inp.value.trim().toUpperCase()):alert('Nhập mã KH!');
     })();
 
-    // Lấy gợi ý fuzzy
     async function fetchSuggest(q){
-      ul.innerHTML = '<li class="loading">Đang tải…</li>';
-      const pw = await ensurePW();
-      const r  = await fetch(`${API}?query=${encodeURIComponent(q)}&password=${pw}`);
-      const j  = await r.json();
-      ul.innerHTML = '';
+      ul.innerHTML='<li class="loading">Đang tải…</li>';
+      const r=await fetch(`${API}?query=${encodeURIComponent(q)}&password=${encodeURIComponent(q)}`);
+      const j=await r.json();
+      ul.innerHTML='';
       (j.suggestions||[]).forEach(x=>{
-        const li = document.createElement('li');
-        li.textContent = `${x.code} – ${x.name}`;
-        li.onclick = ()=>{ inp.value=x.code; ul.innerHTML=''; fetchDetail(x.code); };
+        const li=document.createElement('li');
+        li.textContent=`${x.code} – ${x.name}`;
+        li.onclick=()=>{
+          inp.value=x.code; ul.innerHTML=''; fetchDetail(x.code);
+        };
         ul.appendChild(li);
       });
-      if(!(j.suggestions||[]).length) ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
+      if(!(j.suggestions||[]).length) ul.innerHTML='<li class="loading">Không tìm thấy</li>';
     }
 
-    // Lấy chi tiết với khoảng ngày, tính cosφ & Q-Charge, highlight cosφ<0.9
     async function fetchDetail(code){
-      res.innerHTML = '<p class="loading">Đang tải dữ liệu…</p>';
-      const pw   = await ensurePW();
-      const from = fd.value, to = td.value;
-      const url  = `${API}?id=${encodeURIComponent(code)}&from=${from}&to=${to}&password=${pw}`;
-      const r    = await fetch(url);
-      const j    = await r.json();
+      res.innerHTML='<p class="loading">Đang tải dữ liệu…</p>';
+      const from=fd.value, to=td.value;
+      const r=await fetch(`${API}?id=${encodeURIComponent(code)}&from=${from}&to=${to}&password=${encodeURIComponent(code)}`);
+      const j=await r.json();
       if(j.error){
-        res.innerHTML = `<p style="color:red">${j.error}</p>`;
+        res.innerHTML=`<p style="color:red">${j.error}</p>`;
         return;
       }
-      const arr = j.data||[];
-      if(!arr.length){
-        res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>';
-        return;
-      }
-      let html = '<table><thead><tr>'
-               +'<th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th>'
-               +'<th>Đơn giá (₫/kVArh)</th><th>Tiền Q (₫)</th>'
-               +'</tr></thead><tbody>';
+      const arr=j.data||[];
+      if(!arr.length){ res.innerHTML='<p>Không có dữ liệu.</p>'; return; }
+      let html='<table><thead><tr><th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th><th>Đơn giá</th><th>Tiền Q</th></tr></thead><tbody>';
       arr.forEach(r=>{
-        const low = r.COSPHI < 0.9;
-        html += `<tr class="${low?'low':''}">`
-             + `<td>${r.DATE}</td>`
-             + `<td>${r.COSPHI}</td>`
-             + `<td>${r.KWh}</td>`
-             + `<td>${r.KVArh}</td>`
-             + `<td>${r.unitPrice.toLocaleString()}</td>`
-             + `<td>${r.Q_CHARGE.toLocaleString()}</td>`
-             + `</tr>`;
+        const low=r.COSPHI<0.9;
+        html+=`<tr class="${low?'low':''}"><td>${r.DATE}</td><td>${r.COSPHI}</td><td>${r.KWh}</td><td>${r.KVArh}</td><td>${r.unitPrice}</td><td>${r.Q_CHARGE}</td></tr>`;
       });
-      html += '</tbody></table>';
-      res.innerHTML = html;
+      html+='</tbody></table>';
+      res.innerHTML=html;
     }
   </script>
 </body>
