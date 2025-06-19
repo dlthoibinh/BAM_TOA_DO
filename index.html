@@ -5,28 +5,28 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Tra cứu Q-Charge</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:20px}
-    h1{color:#004a99;margin-bottom:16px}
-    label{font-size:14px;margin-right:8px}
-    input,button{padding:8px;font-size:16px;margin:4px 0}
-    input[type=date]{width:auto}
-    #input{width:200px;border:1px solid #ccc;border-radius:4px}
-    button{background:#004a99;color:#fff;border:none;border-radius:4px;cursor:pointer}
-    ul{list-style:none;padding:0;margin:8px 0;border:1px solid #ccc;border-radius:4px;max-height:150px;overflow:auto}
-    li{padding:8px;border-bottom:1px solid #eee;cursor:pointer}
-    li:hover{background:#f0f0f0}
-    .loading{padding:8px;color:#555;text-align:center}
-    table{width:100%;border-collapse:collapse;margin-top:16px}
-    th,td{padding:8px;border:1px solid #ddd;text-align:center}
-    th{background:#e6f2ff;color:#004a99}
-    tr.low{background:#ffe5e5}
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #004a99; margin-bottom: 16px; }
+    label { font-size: 14px; margin-right: 8px; }
+    input, button { padding: 8px; font-size: 16px; margin: 4px 0; }
+    input[type=date] { width: auto; }
+    #input { width: 200px; border: 1px solid #ccc; border-radius: 4px; }
+    button { background: #004a99; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    ul { list-style: none; padding: 0; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; max-height: 150px; overflow: auto; }
+    li { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+    li:hover { background: #f0f0f0; }
+    .loading { padding: 8px; color: #555; text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { padding: 8px; border: 1px solid #ddd; text-align: center; }
+    th { background: #e6f2ff; color: #004a99; }
+    tr.low { background: #ffe5e5; }
   </style>
 </head>
 <body>
   <h1>Tra cứu Q-Charge</h1>
 
-  <label>Từ ngày:<input type="date" id="fromDate"></label>
-  <label>Đến ngày:<input type="date" id="toDate"></label><br>
+  <label>Từ ngày: <input type="date" id="fromDate"></label>
+  <label>Đến ngày: <input type="date" id="toDate"></label><br>
 
   <input id="input" placeholder="Nhập mã KH..." disabled>
   <button id="btnSearch" disabled>Tra cứu</button>
@@ -37,7 +37,7 @@
   <script>
     const API = 'https://script.google.com/macros/s/AKfycbwm62tqOXFRk4oxEhIvmQljeowij3l06e5cteJ6qbf1/exec';
 
-    // Mặc định: đầu tháng → hôm nay
+    // Thiết lập ngày mặc định: từ đầu tháng tới hôm nay
     const fd = document.getElementById('fromDate'),
           td = document.getElementById('toDate');
     (()=>{
@@ -48,110 +48,121 @@
       td.value = `${y}-${m}-${d}`;
     })();
 
+    let currentPW = null;
+
+    // Hỏi mật khẩu (mã KH) → JSONP callback onAuth
+    function askPW(){
+      const p = prompt('Nhập mật khẩu (mã KH):');
+      if (!p) return askPW();
+      currentPW = p.trim().toUpperCase();
+      // tạo callback onAuth
+      window.onAuth = function(res){
+        delete window.onAuth;
+        if (res && !res.error) {
+          inp.disabled = false;
+          btn.disabled = false;
+        } else {
+          alert('Mật khẩu không hợp lệ!');
+          askPW();
+        }
+      };
+      const s = document.createElement('script');
+      s.src = `${API}?password=${encodeURIComponent(currentPW)}&callback=onAuth`;
+      document.body.appendChild(s);
+    }
+
     const inp = document.getElementById('input'),
           btn = document.getElementById('btnSearch'),
           ul  = document.getElementById('suggestions'),
           res = document.getElementById('result');
-    let timer;
+    let debounce;
 
-    // Hỏi mật khẩu (mã KH) trước
-    async function askPW(){
-      while(true){
-        let p = prompt('Nhập mật khẩu (mã KH):');
-        if(!p) continue;
-        p = p.trim().toUpperCase();
-        const r = await fetch(`${API}?password=${encodeURIComponent(p)}`);
-        const j = await r.json();
-        if (!j.error) return p;
-        alert('Mật khẩu không hợp lệ!');
-      }
-    }
+    // Sau load → hỏi mật khẩu
+    window.onload = askPW;
 
-    // Khởi tạo
-    (async()=>{
-      await askPW();
-      inp.disabled = false;
-      btn.disabled = false;
-
-      inp.addEventListener('input', ()=>{
-        clearTimeout(timer);
-        ul.innerHTML = '';
-        const q = inp.value.trim().toUpperCase();
-        if (!q) return;
-        timer = setTimeout(()=> fetchSuggest(q), 300);
-      });
-
-      btn.addEventListener('click', ()=>{
-        const code = inp.value.trim().toUpperCase();
-        if (!code) return alert('Nhập mã KH!');
-        fetchDetail(code);
-      });
-    })();
-
-    // Lấy gợi ý fuzzy
-    async function fetchSuggest(q){
+    // Gợi ý fuzzy qua JSONP callback onSuggest
+    function fetchSuggest(q){
       ul.innerHTML = '<li class="loading">Đang tải…</li>';
-      const url = `${API}?password=${encodeURIComponent(q)}&query=${encodeURIComponent(q)}`;
-      const r   = await fetch(url);
-      const j   = await r.json();
-      ul.innerHTML = '';
-      if (j.error) {
-        ul.innerHTML = `<li class="loading">${j.error}</li>`;
-        return;
-      }
-      (j.suggestions||[]).forEach(x=>{
-        const li = document.createElement('li');
-        li.textContent = `${x.code} – ${x.name}`;
-        li.onclick = ()=>{
-          inp.value = x.code;
-          ul.innerHTML = '';
-          fetchDetail(x.code);
-        };
-        ul.appendChild(li);
-      });
-      if (!(j.suggestions||[]).length) {
-        ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
-      }
+      window.onSuggest = function(data){
+        delete window.onSuggest;
+        ul.innerHTML = '';
+        (data.suggestions||[]).forEach(x=>{
+          const li = document.createElement('li');
+          li.textContent = `${x.code} – ${x.name}`;
+          li.onclick = ()=>{
+            inp.value = x.code;
+            ul.innerHTML = '';
+            fetchDetail(x.code);
+          };
+          ul.appendChild(li);
+        });
+        if (!(data.suggestions||[]).length) {
+          ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
+        }
+      };
+      const s = document.createElement('script');
+      s.src = `${API}?password=${encodeURIComponent(currentPW)}&query=${encodeURIComponent(q)}&callback=onSuggest`;
+      document.body.appendChild(s);
     }
 
-    // Lấy chi tiết Q-Charge
-    async function fetchDetail(code){
+    // Chi tiết qua JSONP callback onDetail
+    function fetchDetail(code){
       res.innerHTML = '<p class="loading">Đang tải dữ liệu…</p>';
-      const from = fd.value, to = td.value;
-      const url  = `${API}`
-        + `?password=${encodeURIComponent(code)}`
-        + `&id=${encodeURIComponent(code)}`
-        + `&from=${from}`
-        + `&to=${to}`;
-      const r   = await fetch(url);
-      const j   = await r.json();
-      if (j.error) {
-        res.innerHTML = `<p style="color:red">${j.error}</p>`;
-        return;
-      }
-      const arr = j.data || [];
-      if (!arr.length) {
-        res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>';
-        return;
-      }
-      let html = '<table><thead><tr>'
-               + '<th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th>'
-               + '<th>Đơn giá (₫/kVArh)</th><th>Tiền Q (₫)</th>'
-               + '</tr></thead><tbody>';
-      arr.forEach(r=>{
-        const low = r.COSPHI < 0.9;
-        html += `<tr class="${low?'low':''}">`
-             + `<td>${r.DATE}</td>`
-             + `<td>${r.COSPHI}</td>`
-             + `<td>${r.KWh}</td>`
-             + `<td>${r.KVArh}</td>`
-             + `<td>${r.unitPrice.toLocaleString()}</td>`
-             + `<td>${r.Q_CHARGE.toLocaleString()}</td>`
-             + `</tr>`;
-      });
-      html += '</tbody></table>';
-      res.innerHTML = html;
+      window.onDetail = function(data){
+        delete window.onDetail;
+        if (data.error) {
+          res.innerHTML = `<p style="color:red">${data.error}</p>`;
+          return;
+        }
+        const arr = data.data||[];
+        if (!arr.length) {
+          res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>';
+          return;
+        }
+        let html = '<table><thead><tr>'
+                 +'<th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th>'
+                 +'<th>Đơn giá (₫/kVArh)</th><th>Tiền Q (₫)</th>'
+                 +'</tr></thead><tbody>';
+        arr.forEach(r=>{
+          const low = r.COSPHI < 0.9;
+          html += `<tr class="${low?'low':''}">`
+               + `<td>${r.DATE}</td>`
+               + `<td>${r.COSPHI}</td>`
+               + `<td>${r.KWh}</td>`
+               + `<td>${r.KVArh}</td>`
+               + `<td>${r.unitPrice.toLocaleString()}</td>`
+               + `<td>${r.Q_CHARGE.toLocaleString()}</td>`
+               + `</tr>`;
+        });
+        html += '</tbody></table>';
+        res.innerHTML = html;
+      };
+      const url = `${API}`
+                + `?password=${encodeURIComponent(currentPW)}`
+                + `&id=${encodeURIComponent(code)}`
+                + `&from=${fd.value}`
+                + `&to=${td.value}`
+                + `&callback=onDetail`;
+      const s = document.createElement('script');
+      s.src = url;
+      document.body.appendChild(s);
     }
+
+    // Event
+    inp.addEventListener('input', e=>{
+      clearTimeout(debounce);
+      const q = e.target.value.trim();
+      if (!q) {
+        ul.innerHTML = '';
+        return;
+      }
+      debounce = setTimeout(()=> fetchSuggest(q), 300);
+    });
+    btn.addEventListener('click', ()=>{
+      const v = inp.value.trim();
+      if (!v) return alert('Nhập mã KH trước!');
+      fetchDetail(v);
+    });
   </script>
 </body>
 </html>
