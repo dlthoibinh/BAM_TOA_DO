@@ -34,95 +34,122 @@
   <ul id="suggestions"></ul>
   <div id="result"></div>
 
-  <script>
-    const API = 'https://script.google.com/macros/s/AKfycbwm62tqOXFRk4oxEhIvmQljeowij3l06e5cteJ6qbf1/exec';
+  <!-- CryptoJS MD5 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    // Thiết lập ngày mặc định: từ đầu tháng tới hôm nay
-    const fd = document.getElementById('fromDate'),
-          td = document.getElementById('toDate');
-    (()=>{
-      const n=new Date(), y=n.getFullYear(),
-            m=String(n.getMonth()+1).padStart(2,'0'),
-            d=String(n.getDate()).padStart(2,'0');
-      fd.value = `${y}-${m}-01`;
-      td.value = `${y}-${m}-${d}`;
+  <script>
+    // Thay URL của bạn vào đây (EXEC URL mới đã deploy)
+    const EXEC_URL = 'https://script.google.com/macros/s/AKfycbwm62tqOXFRk4oxEhIvmQljeowij3l06e5cteJ6qbf1/exec';
+
+    // Thiết lập ngày mặc định
+    (function(){
+      const n = new Date(), y = n.getFullYear(),
+            m = String(n.getMonth()+1).padStart(2,'0'),
+            d = String(n.getDate()).padStart(2,'0');
+      document.getElementById('fromDate').value = `${y}-${m}-01`;
+      document.getElementById('toDate').value   = `${y}-${m}-${d}`;
     })();
 
-    let currentPW = null;
-
-    // Hỏi mật khẩu (mã KH) → JSONP callback onAuth
-    function askPW(){
-      const p = prompt('Nhập mật khẩu (mã KH):');
-      if (!p) return askPW();
-      currentPW = p.trim().toUpperCase();
-      // tạo callback onAuth
-      window.onAuth = function(res){
-        delete window.onAuth;
-        if (res && !res.error) {
-          inp.disabled = false;
-          btn.disabled = false;
-        } else {
-          alert('Mật khẩu không hợp lệ!');
-          askPW();
-        }
-      };
-      const s = document.createElement('script');
-      s.src = `${API}?password=${encodeURIComponent(currentPW)}&callback=onAuth`;
-      document.body.appendChild(s);
+    // Lưu/Load mật khẩu 30 phút
+    function savePW(h){ localStorage.setItem('pw',h); localStorage.setItem('pw_t',Date.now()); }
+    function loadPW(){
+      const h = localStorage.getItem('pw'),
+            t = +localStorage.getItem('pw_t')||0;
+      if(h && Date.now()-t < 30*60e3) return h;
+      localStorage.removeItem('pw');
+      return null;
     }
 
-    const inp = document.getElementById('input'),
-          btn = document.getElementById('btnSearch'),
-          ul  = document.getElementById('suggestions'),
-          res = document.getElementById('result');
-    let debounce;
+    // Yêu cầu mật khẩu (mã KH) → băm MD5 → JSONP onAuth
+    function askPW(){
+      let p;
+      do { p = prompt('Nhập mật khẩu (mã KH):'); }
+      while(!p);
+      p = p.trim().toUpperCase();
+      const h = CryptoJS.MD5(p).toString();
+      // Chèn script JSONP để gọi onAuth
+      const s = document.createElement('script');
+      s.src = EXEC_URL + '?password='+h+'&callback=onAuth';
+      document.head.appendChild(s);
+    }
 
-    // Sau load → hỏi mật khẩu
-    window.onload = askPW;
+    // Callback JSONP khi xác thực xong
+    function onAuth(resp){
+      if(resp.error){
+        alert(resp.error);
+        askPW();
+      } else {
+        savePW(resp.passwordHash); // passwordHash bạn trả về khi doGet unlock UI
+        initUI();
+      }
+    }
 
-    // Gợi ý fuzzy qua JSONP callback onSuggest
-    function fetchSuggest(q){
-      ul.innerHTML = '<li class="loading">Đang tải…</li>';
+    // Khởi tạo UI sau khi auth thành công
+    function initUI(){
+      const inp = document.getElementById('input'),
+            btn = document.getElementById('btnSearch'),
+            ul  = document.getElementById('suggestions'),
+            res = document.getElementById('result'),
+            fd  = document.getElementById('fromDate'),
+            td  = document.getElementById('toDate');
+      inp.disabled = btn.disabled = false;
+
+      // gợi ý fuzzy
+      inp.oninput = function(){
+        const q = this.value.trim();
+        if(!q){ ul.innerHTML = ''; return; }
+        ul.innerHTML = '<li class="loading">Đang tải…</li>';
+        const cb = document.createElement('script');
+        cb.src = EXEC_URL
+                + '?password='+loadPW()
+                + '&query='+encodeURIComponent(q)
+                + '&callback=onSuggest';
+        document.head.appendChild(cb);
+      };
+
+      // click tra cứu chi tiết
+      btn.onclick = function(){
+        const code = inp.value.trim();
+        if(!code) { alert('Nhập mã KH trước!'); return; }
+        res.innerHTML = '<p class="loading">Đang tải dữ liệu…</p>';
+        const cb = document.createElement('script');
+        cb.src = EXEC_URL
+               + '?password='+loadPW()
+               + '&id='+encodeURIComponent(code)
+               + '&from='+fd.value
+               + '&to='+td.value
+               + '&callback=onDetail';
+        document.head.appendChild(cb);
+      };
+
+      // nhận suggestions
       window.onSuggest = function(data){
-        delete window.onSuggest;
         ul.innerHTML = '';
         (data.suggestions||[]).forEach(x=>{
           const li = document.createElement('li');
           li.textContent = `${x.code} – ${x.name}`;
-          li.onclick = ()=>{
-            inp.value = x.code;
-            ul.innerHTML = '';
-            fetchDetail(x.code);
-          };
+          li.onclick = ()=>{ inp.value = x.code; ul.innerHTML=''; };
           ul.appendChild(li);
         });
-        if (!(data.suggestions||[]).length) {
+        if(!(data.suggestions||[]).length){
           ul.innerHTML = '<li class="loading">Không tìm thấy</li>';
         }
       };
-      const s = document.createElement('script');
-      s.src = `${API}?password=${encodeURIComponent(currentPW)}&query=${encodeURIComponent(q)}&callback=onSuggest`;
-      document.body.appendChild(s);
-    }
 
-    // Chi tiết qua JSONP callback onDetail
-    function fetchDetail(code){
-      res.innerHTML = '<p class="loading">Đang tải dữ liệu…</p>';
+      // nhận detail
       window.onDetail = function(data){
-        delete window.onDetail;
-        if (data.error) {
+        if(data.error){
           res.innerHTML = `<p style="color:red">${data.error}</p>`;
           return;
         }
         const arr = data.data||[];
-        if (!arr.length) {
-          res.innerHTML = '<p>Không có dữ liệu trong khoảng này.</p>';
+        if(!arr.length){
+          res.innerHTML = '<p>Không có dữ liệu.</p>';
           return;
         }
         let html = '<table><thead><tr>'
                  +'<th>Ngày</th><th>cosφ</th><th>kWh</th><th>kVArh</th>'
-                 +'<th>Đơn giá (₫/kVArh)</th><th>Tiền Q (₫)</th>'
-                 +'</tr></thead><tbody>';
+                 +'<th>Đơn giá</th><th>Tiền Q</th></tr></thead><tbody>';
         arr.forEach(r=>{
           const low = r.COSPHI < 0.9;
           html += `<tr class="${low?'low':''}">`
@@ -137,32 +164,14 @@
         html += '</tbody></table>';
         res.innerHTML = html;
       };
-      const url = `${API}`
-                + `?password=${encodeURIComponent(currentPW)}`
-                + `&id=${encodeURIComponent(code)}`
-                + `&from=${fd.value}`
-                + `&to=${td.value}`
-                + `&callback=onDetail`;
-      const s = document.createElement('script');
-      s.src = url;
-      document.body.appendChild(s);
     }
 
-    // Event
-    inp.addEventListener('input', e=>{
-      clearTimeout(debounce);
-      const q = e.target.value.trim();
-      if (!q) {
-        ul.innerHTML = '';
-        return;
-      }
-      debounce = setTimeout(()=> fetchSuggest(q), 300);
-    });
-    btn.addEventListener('click', ()=>{
-      const v = inp.value.trim();
-      if (!v) return alert('Nhập mã KH trước!');
-      fetchDetail(v);
-    });
+    // Bắt đầu: nếu đã lưu pw và còn hiệu lực, nhảy thẳng initUI
+    if(loadPW()){
+      initUI();
+    } else {
+      askPW();
+    }
   </script>
 </body>
 </html>
