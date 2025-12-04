@@ -1,5 +1,5 @@
 const BASE = new URL('./', self.location).pathname;
-const CACHE = 'toadokh-pwa-v2';
+const CACHE = 'toadokh-pwa-v3';
 const STATIC_ASSETS = [
   BASE,
   BASE + 'index.html',
