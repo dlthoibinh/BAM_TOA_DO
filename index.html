@@ -15,65 +15,93 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- CSP: chỉ cho nguồn cần thiết -->
+  <!-- CSP: cho phép script inline để chạy redirect -->
   <meta http-equiv="Content-Security-Policy"
         content="
           default-src 'self';
-          frame-src https://script.google.com https://*.googleusercontent.com;
-          connect-src 'self' https://script.google.com https://*.googleusercontent.com;
+          connect-src 'self';
           img-src 'self' data: https:;
           style-src 'self' 'unsafe-inline';
-          script-src 'self';
+          script-src 'self' 'unsafe-inline';
           base-uri 'self';
           form-action 'none';
           block-all-mixed-content;
         ">
 
   <style>
-    html,body{height:100%;margin:0;background:#f6f7fb;font-family:system-ui,Roboto,Arial}
-    .app{position:fixed;inset:0;display:flex;flex-direction:column}
-    #wrap{flex:1;position:relative}
-    iframe{position:absolute;inset:0;border:0;width:100%;height:100%}
-    .offline{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#fff}
-    .offline.show{display:flex}
-    .offline button{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:800;cursor:pointer}
+    html,body{
+      height:100%;
+      margin:0;
+      background:#f6f7fb;
+      font-family:system-ui,Roboto,Arial,sans-serif
+    }
+    .wrap{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:16px;
+      box-sizing:border-box;
+    }
+    h1{
+      font-size:20px;
+      margin:0 0 8px;
+      color:#1f2933;
+    }
+    p{
+      margin:0 0 12px;
+      color:#4b5563;
+      font-size:14px;
+    }
+    button{
+      padding:10px 18px;
+      border-radius:999px;
+      border:1px solid #1976D2;
+      background:#1976D2;
+      color:#fff;
+      font-weight:600;
+      cursor:pointer;
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <div id="wrap">
-      <!-- Bọc Apps Script bằng iframe -->
-      <iframe id="app"
-        src="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec"
-        allow="geolocation *; fullscreen *; camera *; microphone *; clipboard-read; clipboard-write; accelerometer; gyroscope; magnetometer"
-        referrerpolicy="no-referrer"></iframe>
-
-      <div id="offline" class="offline">
-        <div style="text-align:center">
-          <h2>Không có mạng</h2>
-          <p>Ứng dụng cần kết nối Internet để chạy.</p>
-          <button onclick="location.reload()">Thử lại</button>
-        </div>
-      </div>
+  <div class="wrap" id="offlineBox" style="display:none">
+    <div>
+      <h1>Tọa Độ & Ảnh KH</h1>
+      <p>Thiết bị đang <b>không có mạng</b>. Vui lòng bật dữ liệu / Wi-Fi rồi bấm nút dưới để vào lại ứng dụng.</p>
+      <button onclick="openApp()">Thử mở lại ứng dụng</button>
     </div>
   </div>
 
   <script>
-    // Tính BASE để SW đúng scope kể cả khi host ở subfolder
-    const BASE = (location.pathname.endsWith('/')
-      ? location.pathname
-      : location.pathname.replace(/\/[^/]*$/, '/'));
+    const APP_URL = "https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec";
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE })
-        .then(r => console.log('SW registered:', r.scope))
-        .catch(e => console.warn('SW register failed:', e));
+    function openApp() {
+      // chuyển hẳn sang Apps Script, không chạy trong iframe nữa
+      window.location.replace(APP_URL);
     }
 
-    const setOfflineUI = on => document.getElementById('offline').classList.toggle('show', !!on);
-    addEventListener('online',  ()=>setOfflineUI(false));
-    addEventListener('offline', ()=>setOfflineUI(true));
-    setOfflineUI(!navigator.onLine);
+    function updateState() {
+      if (navigator.onLine) {
+        openApp();   // có mạng là vào app luôn
+      } else {
+        document.getElementById("offlineBox").style.display = "flex";
+      }
+    }
+
+    // Gọi ngay khi load
+    updateState();
+
+    // Nếu đang mở mà mất / có mạng lại
+    window.addEventListener("online",  updateState);
+    window.addEventListener("offline", updateState);
   </script>
+
+  <!-- Fallback cho trình duyệt tắt JS -->
+  <noscript>
+    <meta http-equiv="refresh"
+          content="0;url=https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec">
+  </noscript>
 </body>
 </html>
