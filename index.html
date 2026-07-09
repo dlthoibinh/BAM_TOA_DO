@@ -2,78 +2,393 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
   <title>Tọa Độ & Ảnh KH</title>
 
-  <!-- Manifest & PWA -->
+  <!-- Không giữ bản index.html cũ có iframe -->
+  <meta
+    http-equiv="Cache-Control"
+    content="no-cache, no-store, must-revalidate"
+  >
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#1976D2">
+
   <link rel="apple-touch-icon" href="evn_logo.png">
-  <link rel="canonical" href="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec">
+  <link rel="icon" type="image/png" href="evn_logo.png">
 
-  <!-- iOS -->
+  <!-- Android / iOS -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  >
+  <meta name="apple-mobile-web-app-title" content="Tọa độ KH">
 
-  <!-- CSP: chỉ cho nguồn cần thiết -->
-  <meta http-equiv="Content-Security-Policy"
-        content="
-          default-src 'self';
-          frame-src https://script.google.com https://*.googleusercontent.com;
-          connect-src 'self' https://script.google.com https://*.googleusercontent.com;
-          img-src 'self' data: https:;
-          style-src 'self' 'unsafe-inline';
-          script-src 'self';
-          base-uri 'self';
-          form-action 'none';
-          block-all-mixed-content;
-        ">
+  <!-- Tối ưu kết nối Google -->
+  <link rel="dns-prefetch" href="//script.google.com">
+  <link rel="dns-prefetch" href="//script.googleusercontent.com">
+
+  <link
+    rel="preconnect"
+    href="https://script.google.com"
+    crossorigin
+  >
+
+  <link
+    rel="preconnect"
+    href="https://script.googleusercontent.com"
+    crossorigin
+  >
 
   <style>
-    html,body{height:100%;margin:0;background:#f6f7fb;font-family:system-ui,Roboto,Arial}
-    .app{position:fixed;inset:0;display:flex;flex-direction:column}
-    #wrap{flex:1;position:relative}
-    iframe{position:absolute;inset:0;border:0;width:100%;height:100%}
-    .offline{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#fff}
-    .offline.show{display:flex}
-    .offline button{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:800;cursor:pointer}
-  </style>
-</head>
-<body>
-  <div class="app">
-    <div id="wrap">
-      <!-- Bọc Apps Script bằng iframe -->
-      <iframe id="app"
-        src="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec"
-        allow="geolocation *; fullscreen *; camera *; microphone *; clipboard-read; clipboard-write; accelerometer; gyroscope; magnetometer"
-        referrerpolicy="no-referrer"></iframe>
-
-      <div id="offline" class="offline">
-        <div style="text-align:center">
-          <h2>Không có mạng</h2>
-          <p>Ứng dụng cần kết nối Internet để chạy.</p>
-          <button onclick="location.reload()">Thử lại</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // Tính BASE để SW đúng scope kể cả khi host ở subfolder
-    const BASE = (location.pathname.endsWith('/')
-      ? location.pathname
-      : location.pathname.replace(/\/[^/]*$/, '/'));
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE })
-        .then(r => console.log('SW registered:', r.scope))
-        .catch(e => console.warn('SW register failed:', e));
+    * {
+      box-sizing: border-box;
     }
 
-    const setOfflineUI = on => document.getElementById('offline').classList.toggle('show', !!on);
-    addEventListener('online',  ()=>setOfflineUI(false));
-    addEventListener('offline', ()=>setOfflineUI(true));
-    setOfflineUI(!navigator.onLine);
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(25, 118, 210, 0.24),
+          transparent 38%
+        ),
+        radial-gradient(
+          circle at bottom right,
+          rgba(0, 150, 136, 0.16),
+          transparent 38%
+        ),
+        #f3f6fb;
+
+      color: #0f172a;
+
+      font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Arial,
+        sans-serif;
+    }
+
+    .loading-card {
+      width: min(420px, 100%);
+      padding: 26px 22px;
+
+      text-align: center;
+
+      background: #ffffff;
+      border: 1px solid #dbe4ef;
+      border-radius: 24px;
+
+      box-shadow:
+        0 18px 48px rgba(15, 23, 42, 0.14);
+    }
+
+    .logo {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 16px;
+
+      display: grid;
+      place-items: center;
+
+      overflow: hidden;
+      border-radius: 20px;
+
+      background: #ffffff;
+      border: 1px solid #dbe4ef;
+
+      box-shadow:
+        0 12px 28px rgba(25, 118, 210, 0.20);
+    }
+
+    .logo img {
+      width: 54px;
+      height: 54px;
+      object-fit: contain;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 17px;
+
+      border: 4px solid #dbeafe;
+      border-top-color: #1976D2;
+      border-radius: 50%;
+
+      animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    h1 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 22px;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 10px 0 18px;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .open-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      min-height: 46px;
+      padding: 11px 18px;
+
+      border-radius: 14px;
+
+      background: #1976D2;
+      color: #ffffff;
+
+      font-size: 14px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .open-button:active {
+      transform: scale(0.98);
+    }
+
+    .small-note {
+      margin-top: 14px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .offline-message {
+      display: none;
+      margin-top: 14px;
+      padding: 11px;
+
+      border: 1px solid #fecaca;
+      border-radius: 14px;
+
+      background: #fff1f2;
+      color: #b42318;
+
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .offline-message.show {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="loading-card">
+    <div class="logo">
+      <img
+        src="evn_logo.png"
+        alt="EVN"
+      >
+    </div>
+
+    <div class="spinner" aria-hidden="true"></div>
+
+    <h1>Đang mở Tọa Độ & Ảnh KH</h1>
+
+    <p>
+      Hệ thống đang kết nối trực tiếp đến
+      ứng dụng Google Apps Script.
+    </p>
+
+    <a
+      id="openAppButton"
+      class="open-button"
+      href="#"
+    >
+      Mở ứng dụng ngay
+    </a>
+
+    <div
+      id="offlineMessage"
+      class="offline-message"
+    >
+      Điện thoại đang mất kết nối Internet.
+      Vui lòng kiểm tra Wi-Fi hoặc dữ liệu di động.
+    </div>
+
+    <div class="small-note">
+      Nếu hệ thống chưa tự mở, anh bấm nút phía trên.
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var APP_URL =
+        'https://script.google.com/macros/s/' +
+        'AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_' +
+        'G3J8osKPzHRyeSPb2PGz7/exec';
+
+      /*
+       * Giữ nguyên tham số mở từ APK hoặc thông báo.
+       * Ví dụ:
+       * ?open=map&id=123
+       */
+      var targetUrl =
+        APP_URL +
+        (window.location.search || '') +
+        (window.location.hash || '');
+
+      var button =
+        document.getElementById('openAppButton');
+
+      var offlineMessage =
+        document.getElementById('offlineMessage');
+
+      button.href = targetUrl;
+
+      var redirected = false;
+
+      function updateNetworkState() {
+        var offline = !navigator.onLine;
+
+        offlineMessage.classList.toggle(
+          'show',
+          offline
+        );
+
+        return !offline;
+      }
+
+      function redirectToApp() {
+        if (redirected) {
+          return;
+        }
+
+        if (!updateNetworkState()) {
+          return;
+        }
+
+        redirected = true;
+
+        /*
+         * Chuyển toàn bộ WebView sang Apps Script.
+         * Không dùng iframe vì Android WebView chặn iframe.
+         */
+        window.location.replace(targetUrl);
+      }
+
+      function unregisterOldServiceWorkers() {
+        if (!('serviceWorker' in navigator)) {
+          return Promise.resolve();
+        }
+
+        return navigator.serviceWorker
+          .getRegistrations()
+          .then(function (registrations) {
+            return Promise.all(
+              registrations.map(function (registration) {
+                return registration.unregister()
+                  .catch(function () {
+                    return false;
+                  });
+              })
+            );
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+
+      function deleteOldCaches() {
+        if (!('caches' in window)) {
+          return Promise.resolve();
+        }
+
+        return caches.keys()
+          .then(function (cacheNames) {
+            return Promise.all(
+              cacheNames.map(function (cacheName) {
+                return caches.delete(cacheName)
+                  .catch(function () {
+                    return false;
+                  });
+              })
+            );
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+
+      window.addEventListener(
+        'online',
+        function () {
+          updateNetworkState();
+          redirectToApp();
+        }
+      );
+
+      window.addEventListener(
+        'offline',
+        updateNetworkState
+      );
+
+      updateNetworkState();
+
+      /*
+       * Dọn cache và Service Worker cũ trước khi chuyển.
+       */
+      Promise.all([
+        unregisterOldServiceWorkers(),
+        deleteOldCaches()
+      ]).then(
+        redirectToApp,
+        redirectToApp
+      );
+
+      /*
+       * Dự phòng cho Android WebView cũ.
+       */
+      window.setTimeout(
+        redirectToApp,
+        1500
+      );
+    })();
   </script>
 </body>
 </html>
