@@ -2,392 +2,326 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  >
-
+  <meta name="viewport"
+        content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
   <title>Tọa Độ & Ảnh KH</title>
 
-  <!-- Không giữ bản index.html cũ có iframe -->
-  <meta
-    http-equiv="Cache-Control"
-    content="no-cache, no-store, must-revalidate"
-  >
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-
-  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1976D2">
-
   <link rel="apple-touch-icon" href="evn_logo.png">
-  <link rel="icon" type="image/png" href="evn_logo.png">
+  <link rel="canonical"
+        href="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec">
 
-  <!-- Android / iOS -->
+  <meta name="theme-color" content="#1976D2">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta
-    name="apple-mobile-web-app-status-bar-style"
-    content="black-translucent"
-  >
-  <meta name="apple-mobile-web-app-title" content="Tọa độ KH">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
 
-  <!-- Tối ưu kết nối Google -->
-  <link rel="dns-prefetch" href="//script.google.com">
-  <link rel="dns-prefetch" href="//script.googleusercontent.com">
-
-  <link
-    rel="preconnect"
-    href="https://script.google.com"
-    crossorigin
-  >
-
-  <link
-    rel="preconnect"
-    href="https://script.googleusercontent.com"
-    crossorigin
-  >
+  <!--
+    Không nhúng Google Apps Script bằng iframe.
+    Trang đăng nhập/chuyển hướng của Google có thể chặn iframe và gây:
+    net::ERR_BLOCKED_BY_RESPONSE.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          img-src 'self' data:;
+          style-src 'self' 'unsafe-inline';
+          script-src 'self' 'unsafe-inline';
+          connect-src 'self';
+          base-uri 'self';
+          object-src 'none';
+          form-action 'none';
+          frame-src 'none';
+          upgrade-insecure-requests;
+        ">
 
   <style>
-    * {
-      box-sizing: border-box;
+    :root{
+      --pri:#1976D2;
+      --pri-dark:#155fae;
+      --bg:#eef3f8;
+      --card:#fff;
+      --text:#172033;
+      --muted:#64748b;
+      --danger:#b91c1c;
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-right:env(safe-area-inset-right,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+      --safe-left:env(safe-area-inset-left,0px);
     }
 
-    html,
-    body {
-      width: 100%;
-      min-height: 100%;
-      margin: 0;
+    *{box-sizing:border-box}
+
+    html,body{
+      width:100%;
+      min-height:100%;
+      margin:0;
+      overflow-x:hidden;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      -webkit-text-size-adjust:100%;
+      -webkit-tap-highlight-color:transparent;
     }
 
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-
-      background:
-        radial-gradient(
-          circle at top left,
-          rgba(25, 118, 210, 0.24),
-          transparent 38%
-        ),
-        radial-gradient(
-          circle at bottom right,
-          rgba(0, 150, 136, 0.16),
-          transparent 38%
-        ),
-        #f3f6fb;
-
-      color: #0f172a;
-
-      font-family:
-        system-ui,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Roboto,
-        Arial,
-        sans-serif;
+    body{
+      min-height:100dvh;
     }
 
-    .loading-card {
-      width: min(420px, 100%);
-      padding: 26px 22px;
-
-      text-align: center;
-
-      background: #ffffff;
-      border: 1px solid #dbe4ef;
-      border-radius: 24px;
-
-      box-shadow:
-        0 18px 48px rgba(15, 23, 42, 0.14);
+    .screen{
+      min-height:100dvh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:
+        calc(18px + var(--safe-top))
+        calc(16px + var(--safe-right))
+        calc(18px + var(--safe-bottom))
+        calc(16px + var(--safe-left));
     }
 
-    .logo {
-      width: 68px;
-      height: 68px;
-      margin: 0 auto 16px;
-
-      display: grid;
-      place-items: center;
-
-      overflow: hidden;
-      border-radius: 20px;
-
-      background: #ffffff;
-      border: 1px solid #dbe4ef;
-
-      box-shadow:
-        0 12px 28px rgba(25, 118, 210, 0.20);
+    .card{
+      width:min(100%,520px);
+      background:var(--card);
+      border-radius:22px;
+      box-shadow:0 16px 50px rgba(15,23,42,.14);
+      padding:22px 18px;
+      text-align:center;
     }
 
-    .logo img {
-      width: 54px;
-      height: 54px;
-      object-fit: contain;
+    .logo{
+      width:72px;
+      height:72px;
+      object-fit:contain;
+      margin:0 auto 12px;
+      display:block;
     }
 
-    .spinner {
-      width: 42px;
-      height: 42px;
-      margin: 0 auto 17px;
-
-      border: 4px solid #dbeafe;
-      border-top-color: #1976D2;
-      border-radius: 50%;
-
-      animation: spin 0.75s linear infinite;
+    h1{
+      margin:0;
+      color:var(--pri);
+      font-size:23px;
+      line-height:1.25;
     }
 
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
+    .desc{
+      margin:10px auto 18px;
+      max-width:390px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .loader{
+      width:42px;
+      height:42px;
+      margin:18px auto;
+      border:4px solid #dbeafe;
+      border-top-color:var(--pri);
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .status{
+      min-height:22px;
+      margin:8px 0 16px;
+      font-size:14px;
+      font-weight:700;
+      color:#334155;
+    }
+
+    .status.error{color:var(--danger)}
+
+    .btn{
+      display:flex;
+      width:100%;
+      min-height:50px;
+      align-items:center;
+      justify-content:center;
+      border:0;
+      border-radius:14px;
+      background:var(--pri);
+      color:#fff;
+      text-decoration:none;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(25,118,210,.24);
+      touch-action:manipulation;
+    }
+
+    .btn:active{transform:translateY(1px)}
+    .btn[hidden]{display:none!important}
+
+    .note{
+      margin:14px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    @media(max-width:560px){
+      .screen{
+        align-items:stretch;
+        padding:
+          var(--safe-top)
+          var(--safe-right)
+          var(--safe-bottom)
+          var(--safe-left);
+      }
+
+      .card{
+        width:100%;
+        min-height:100dvh;
+        border-radius:0;
+        box-shadow:none;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        padding:24px 18px;
       }
     }
 
-    h1 {
-      margin: 0;
-      color: #0f172a;
-      font-size: 22px;
-      line-height: 1.35;
-    }
-
-    p {
-      margin: 10px 0 18px;
-      color: #64748b;
-      font-size: 14px;
-      line-height: 1.55;
-    }
-
-    .open-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-
-      min-height: 46px;
-      padding: 11px 18px;
-
-      border-radius: 14px;
-
-      background: #1976D2;
-      color: #ffffff;
-
-      font-size: 14px;
-      font-weight: 800;
-      text-decoration: none;
-    }
-
-    .open-button:active {
-      transform: scale(0.98);
-    }
-
-    .small-note {
-      margin-top: 14px;
-      color: #94a3b8;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .offline-message {
-      display: none;
-      margin-top: 14px;
-      padding: 11px;
-
-      border: 1px solid #fecaca;
-      border-radius: 14px;
-
-      background: #fff1f2;
-      color: #b42318;
-
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.45;
-    }
-
-    .offline-message.show {
-      display: block;
+    @media(prefers-reduced-motion:reduce){
+      .loader{animation-duration:1.6s}
     }
   </style>
 </head>
 
 <body>
-  <main class="loading-card">
-    <div class="logo">
-      <img
-        src="evn_logo.png"
-        alt="EVN"
-      >
-    </div>
+  <main class="screen">
+    <section class="card" aria-live="polite">
+      <img class="logo" src="evn_logo.png" alt="EVN">
+      <h1>Tọa Độ & Ảnh KH</h1>
+      <p class="desc">
+        Đang mở ứng dụng trực tiếp để giữ đầy đủ quyền vị trí, camera
+        và giao diện chuẩn trên điện thoại.
+      </p>
 
-    <div class="spinner" aria-hidden="true"></div>
+      <div id="loader" class="loader" aria-hidden="true"></div>
+      <div id="status" class="status">Đang kết nối…</div>
 
-    <h1>Đang mở Tọa Độ & Ảnh KH</h1>
+      <!-- target="_top" giúp thoát khỏi iframe nếu trang này bị app khác nhúng vào -->
+      <a id="openBtn"
+         class="btn"
+         href="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec"
+         target="_top"
+         rel="noopener"
+         hidden>
+        Mở ứng dụng
+      </a>
 
-    <p>
-      Hệ thống đang kết nối trực tiếp đến
-      ứng dụng Google Apps Script.
-    </p>
-
-    <a
-      id="openAppButton"
-      class="open-button"
-      href="#"
-    >
-      Mở ứng dụng ngay
-    </a>
-
-    <div
-      id="offlineMessage"
-      class="offline-message"
-    >
-      Điện thoại đang mất kết nối Internet.
-      Vui lòng kiểm tra Wi-Fi hoặc dữ liệu di động.
-    </div>
-
-    <div class="small-note">
-      Nếu hệ thống chưa tự mở, anh bấm nút phía trên.
-    </div>
+      <p class="note">
+        Không dùng iframe cho Google Apps Script vì phản hồi đăng nhập/chuyển hướng
+        của Google có thể bị trình duyệt Android chặn.
+      </p>
+    </section>
   </main>
 
   <script>
-    (function () {
+    (() => {
       'use strict';
 
-      var APP_URL =
-        'https://script.google.com/macros/s/' +
-        'AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_' +
-        'G3J8osKPzHRyeSPb2PGz7/exec';
+      const APP_URL =
+        'https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec';
 
-      /*
-       * Giữ nguyên tham số mở từ APK hoặc thông báo.
-       * Ví dụ:
-       * ?open=map&id=123
-       */
-      var targetUrl =
-        APP_URL +
-        (window.location.search || '') +
-        (window.location.hash || '');
+      const $ = id => document.getElementById(id);
+      const statusEl = $('status');
+      const loaderEl = $('loader');
+      const openBtn = $('openBtn');
 
-      var button =
-        document.getElementById('openAppButton');
+      function buildTargetUrl() {
+        const target = new URL(APP_URL);
+        const current = new URL(location.href);
 
-      var offlineMessage =
-        document.getElementById('offlineMessage');
+        // Chuyển tiếp tham số, ví dụ ?mkh=12345 hoặc ?from=...
+        current.searchParams.forEach((value, key) => {
+          if (key !== 'pwa' && key !== 'sw' && key !== 'manifest') {
+            target.searchParams.set(key, value);
+          }
+        });
 
-      button.href = targetUrl;
-
-      var redirected = false;
-
-      function updateNetworkState() {
-        var offline = !navigator.onLine;
-
-        offlineMessage.classList.toggle(
-          'show',
-          offline
-        );
-
-        return !offline;
+        if (current.hash) target.hash = current.hash;
+        return target.toString();
       }
 
-      function redirectToApp() {
-        if (redirected) {
+      const targetUrl = buildTargetUrl();
+      openBtn.href = targetUrl;
+
+      function showManual(message, isError = false) {
+        loaderEl.hidden = true;
+        openBtn.hidden = false;
+        statusEl.textContent = message;
+        statusEl.classList.toggle('error', !!isError);
+      }
+
+      function launchDirect() {
+        if (!navigator.onLine) {
+          showManual('Không có mạng. Anh kiểm tra Internet rồi bấm Thử lại.', true);
+          openBtn.textContent = 'Thử mở lại';
           return;
         }
 
-        if (!updateNetworkState()) {
+        statusEl.textContent = 'Đang mở ứng dụng…';
+        statusEl.classList.remove('error');
+
+        try {
+          /*
+            Trường hợp wrapper đang nằm trong iframe của app khác:
+            ép điều hướng toàn màn hình, không tải Apps Script bên trong iframe.
+          */
+          if (window.top && window.top !== window) {
+            window.top.location.href = targetUrl;
+            setTimeout(() => {
+              showManual('Chạm nút bên dưới để mở toàn màn hình.');
+            }, 900);
+            return;
+          }
+        } catch (_) {
+          // Bị giới hạn cross-origin/sandbox: nút target="_top" bên dưới sẽ xử lý.
+          showManual('Chạm nút bên dưới để mở toàn màn hình.');
           return;
         }
 
-        redirected = true;
-
-        /*
-         * Chuyển toàn bộ WebView sang Apps Script.
-         * Không dùng iframe vì Android WebView chặn iframe.
-         */
-        window.location.replace(targetUrl);
+        // Mở trực tiếp ở cùng màn hình; không tạo tab mới.
+        location.replace(targetUrl);
       }
 
-      function unregisterOldServiceWorkers() {
-        if (!('serviceWorker' in navigator)) {
-          return Promise.resolve();
-        }
+      addEventListener('online', () => {
+        statusEl.textContent = 'Đã có mạng. Đang mở lại…';
+        loaderEl.hidden = false;
+        openBtn.hidden = true;
+        setTimeout(launchDirect, 100);
+      });
 
-        return navigator.serviceWorker
-          .getRegistrations()
-          .then(function (registrations) {
-            return Promise.all(
-              registrations.map(function (registration) {
-                return registration.unregister()
-                  .catch(function () {
-                    return false;
-                  });
-              })
-            );
+      addEventListener('offline', () => {
+        showManual('Không có mạng. Dữ liệu chưa thể tải.', true);
+        openBtn.textContent = 'Thử mở lại';
+      });
+
+      openBtn.addEventListener('click', () => {
+        statusEl.textContent = 'Đang mở ứng dụng…';
+        statusEl.classList.remove('error');
+      });
+
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        const base = location.pathname.endsWith('/')
+          ? location.pathname
+          : location.pathname.replace(/\/[^/]*$/, '/');
+
+        navigator.serviceWorker
+          .register(base + 'sw.js', {
+            scope: base,
+            updateViaCache: 'none'
           })
-          .catch(function () {
-            return null;
-          });
+          .catch(err => console.warn('[PWA] SW register failed:', err));
       }
 
-      function deleteOldCaches() {
-        if (!('caches' in window)) {
-          return Promise.resolve();
-        }
-
-        return caches.keys()
-          .then(function (cacheNames) {
-            return Promise.all(
-              cacheNames.map(function (cacheName) {
-                return caches.delete(cacheName)
-                  .catch(function () {
-                    return false;
-                  });
-              })
-            );
-          })
-          .catch(function () {
-            return null;
-          });
-      }
-
-      window.addEventListener(
-        'online',
-        function () {
-          updateNetworkState();
-          redirectToApp();
-        }
-      );
-
-      window.addEventListener(
-        'offline',
-        updateNetworkState
-      );
-
-      updateNetworkState();
-
-      /*
-       * Dọn cache và Service Worker cũ trước khi chuyển.
-       */
-      Promise.all([
-        unregisterOldServiceWorkers(),
-        deleteOldCaches()
-      ]).then(
-        redirectToApp,
-        redirectToApp
-      );
-
-      /*
-       * Dự phòng cho Android WebView cũ.
-       */
-      window.setTimeout(
-        redirectToApp,
-        1500
-      );
+      // Cho DOM hiển thị ổn định rồi chuyển trang.
+      setTimeout(launchDirect, 120);
     })();
   </script>
 </body>
