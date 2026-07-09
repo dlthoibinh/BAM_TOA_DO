@@ -1,49 +1,85 @@
-const BASE = new URL('./', self.location).pathname;
-const CACHE = 'toadokh-pwa-v3';
-const STATIC_ASSETS = [
-  BASE,
-  BASE + 'index.html',
-  BASE + 'manifest.webmanifest',
-  BASE + 'icon-192-any.png',
-  BASE + 'icon-512-any.png',
-  BASE + 'icon-192-maskable.png',
-  BASE + 'icon-512-maskable.png',
-  BASE + 'evn_logo.png'
+'use strict';
+
+/*
+ * Service Worker tự dọn và tự hủy.
+ *
+ * Mục đích:
+ * - Xóa cache toadokh-pwa-v3 cũ.
+ * - Xóa index.html cũ chứa iframe.
+ * - Ngừng Service Worker điều khiển trang.
+ */
+
+const OLD_CACHE_NAMES = [
+  'toadokh-pwa-v3'
 ];
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC_ASSETS)));
+
+const OLD_CACHE_PREFIXES = [
+  'toadokh-pwa-'
+];
+
+self.addEventListener('install', function () {
   self.skipWaiting();
 });
-self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE ? caches.delete(k) : 0))));
-  self.clients.claim();
-});
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  const url = new URL(req.url);
-  // Only handle same-origin requests
-  if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return;
 
-  if (req.mode === 'navigate') {
-    e.respondWith((async () => {
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    (async function () {
       try {
-        const fresh = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
-        return fresh;
-      } catch {
-        const cache = await caches.open(CACHE);
-        return (await cache.match(BASE + 'index.html')) || Response.error();
+        const cacheNames = await caches.keys();
+
+        await Promise.all(
+          cacheNames
+            .filter(function (cacheName) {
+              if (OLD_CACHE_NAMES.includes(cacheName)) {
+                return true;
+              }
+
+              return OLD_CACHE_PREFIXES.some(
+                function (prefix) {
+                  return cacheName.startsWith(prefix);
+                }
+              );
+            })
+            .map(function (cacheName) {
+              return caches.delete(cacheName);
+            })
+        );
+
+        /*
+         * Gỡ đăng ký Service Worker.
+         */
+        await self.registration.unregister();
+
+        /*
+         * Tải lại các trang đang mở để nhận index.html mới.
+         */
+        const clients = await self.clients.matchAll({
+          type: 'window',
+          includeUncontrolled: true
+        });
+
+        await Promise.all(
+          clients.map(function (client) {
+            return client.navigate(client.url)
+              .catch(function () {
+                return null;
+              });
+          })
+        );
+      } catch (error) {
+        console.error(
+          '[TOA-DO-KH] Không thể dọn Service Worker:',
+          error
+        );
       }
-    })());
-    return;
-  }
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreVary: true });
-    if (cached) return cached;
-    const res = await fetch(req);
-    if (res.ok && req.method === 'GET') cache.put(req, res.clone());
-    return res;
-  })());
+    })()
+  );
+});
+
+/*
+ * Không dùng respondWith().
+ * Mọi request được trình duyệt tải trực tiếp qua mạng.
+ */
+self.addEventListener('fetch', function () {
+  // Cố ý để trống.
 });
