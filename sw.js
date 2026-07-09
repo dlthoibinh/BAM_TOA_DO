@@ -1,85 +1,114 @@
-'use strict';
+const BASE = new URL('./', self.location.href).pathname;
+const CACHE = 'toadokh-pwa-direct-v4';
 
-/*
- * Service Worker tự dọn và tự hủy.
- *
- * Mục đích:
- * - Xóa cache toadokh-pwa-v3 cũ.
- * - Xóa index.html cũ chứa iframe.
- * - Ngừng Service Worker điều khiển trang.
- */
-
-const OLD_CACHE_NAMES = [
-  'toadokh-pwa-v3'
+const STATIC_ASSETS = [
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.webmanifest',
+  BASE + 'icon-192-any.png',
+  BASE + 'icon-512-any.png',
+  BASE + 'icon-192-maskable.png',
+  BASE + 'icon-512-maskable.png',
+  BASE + 'evn_logo.png'
 ];
 
-const OLD_CACHE_PREFIXES = [
-  'toadokh-pwa-'
-];
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE).then(async cache => {
+      // Một icon thiếu không được làm hỏng toàn bộ quá trình cài SW.
+      await Promise.all(
+        STATIC_ASSETS.map(async url => {
+          try {
+            await cache.add(new Request(url, { cache: 'reload' }));
+          } catch (error) {
+            console.warn('[SW] Không cache được:', url, error);
+          }
+        })
+      );
+    })
+  );
 
-self.addEventListener('install', function () {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', function (event) {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    (async function () {
-      try {
-        const cacheNames = await caches.keys();
-
-        await Promise.all(
-          cacheNames
-            .filter(function (cacheName) {
-              if (OLD_CACHE_NAMES.includes(cacheName)) {
-                return true;
-              }
-
-              return OLD_CACHE_PREFIXES.some(
-                function (prefix) {
-                  return cacheName.startsWith(prefix);
-                }
-              );
-            })
-            .map(function (cacheName) {
-              return caches.delete(cacheName);
-            })
-        );
-
-        /*
-         * Gỡ đăng ký Service Worker.
-         */
-        await self.registration.unregister();
-
-        /*
-         * Tải lại các trang đang mở để nhận index.html mới.
-         */
-        const clients = await self.clients.matchAll({
-          type: 'window',
-          includeUncontrolled: true
-        });
-
-        await Promise.all(
-          clients.map(function (client) {
-            return client.navigate(client.url)
-              .catch(function () {
-                return null;
-              });
-          })
-        );
-      } catch (error) {
-        console.error(
-          '[TOA-DO-KH] Không thể dọn Service Worker:',
-          error
-        );
-      }
-    })()
+    caches.keys().then(keys =>
+      Promise.all(
+        keys
+          .filter(key => key !== CACHE)
+          .map(key => caches.delete(key))
+      )
+    )
   );
+
+  self.clients.claim();
 });
 
-/*
- * Không dùng respondWith().
- * Mọi request được trình duyệt tải trực tiếp qua mạng.
- */
-self.addEventListener('fetch', function () {
-  // Cố ý để trống.
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  // Chỉ xử lý file cùng origin của PWA wrapper.
+  // Không can thiệp và không cache Google Apps Script.
+  if (
+    request.method !== 'GET' ||
+    url.origin !== self.location.origin ||
+    !url.pathname.startsWith(BASE)
+  ) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirstNavigation(request));
+    return;
+  }
+
+  event.respondWith(staleWhileRevalidate(request));
 });
+
+async function networkFirstNavigation(request) {
+  const cache = await caches.open(CACHE);
+
+  try {
+    const response = await fetch(request, { cache: 'no-store' });
+
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (_) {
+    return (
+      await cache.match(request, { ignoreSearch: true }) ||
+      await cache.match(BASE + 'index.html') ||
+      await cache.match(BASE) ||
+      new Response(
+        '<!doctype html><meta charset="utf-8"><title>Offline</title>' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<style>body{font-family:system-ui;padding:24px}</style>' +
+        '<h2>Không có mạng</h2><p>Vui lòng kiểm tra kết nối Internet rồi mở lại ứng dụng.</p>',
+        {
+          status: 503,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        }
+      )
+    );
+  }
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE);
+  const cached = await cache.match(request, { ignoreVary: true });
+
+  const networkPromise = fetch(request)
+    .then(async response => {
+      if (response && response.ok) {
+        await cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  return cached || await networkPromise || Response.error();
+}
