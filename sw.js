@@ -1,6 +1,5 @@
-const BASE = new URL('./', self.location.href).pathname;
-const CACHE = 'toadokh-pwa-direct-v4';
-
+const BASE = new URL('./', self.location).pathname;
+const CACHE = 'toadokh-pwa-v2';
 const STATIC_ASSETS = [
   BASE,
   BASE + 'index.html',
@@ -11,104 +10,40 @@ const STATIC_ASSETS = [
   BASE + 'icon-512-maskable.png',
   BASE + 'evn_logo.png'
 ];
-
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE).then(async cache => {
-      // Một icon thiếu không được làm hỏng toàn bộ quá trình cài SW.
-      await Promise.all(
-        STATIC_ASSETS.map(async url => {
-          try {
-            await cache.add(new Request(url, { cache: 'reload' }));
-          } catch (error) {
-            console.warn('[SW] Không cache được:', url, error);
-          }
-        })
-      );
-    })
-  );
-
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC_ASSETS)));
   self.skipWaiting();
 });
-
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key !== CACHE)
-          .map(key => caches.delete(key))
-      )
-    )
-  );
-
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE ? caches.delete(k) : 0))));
   self.clients.claim();
 });
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  const url = new URL(req.url);
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return;
 
-self.addEventListener('fetch', event => {
-  const request = event.request;
-  const url = new URL(request.url);
-
-  // Chỉ xử lý file cùng origin của PWA wrapper.
-  // Không can thiệp và không cache Google Apps Script.
-  if (
-    request.method !== 'GET' ||
-    url.origin !== self.location.origin ||
-    !url.pathname.startsWith(BASE)
-  ) {
-    return;
-  }
-
-  if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request));
-    return;
-  }
-
-  event.respondWith(staleWhileRevalidate(request));
-});
-
-async function networkFirstNavigation(request) {
-  const cache = await caches.open(CACHE);
-
-  try {
-    const response = await fetch(request, { cache: 'no-store' });
-
-    if (response && response.ok) {
-      await cache.put(request, response.clone());
-    }
-
-    return response;
-  } catch (_) {
-    return (
-      await cache.match(request, { ignoreSearch: true }) ||
-      await cache.match(BASE + 'index.html') ||
-      await cache.match(BASE) ||
-      new Response(
-        '<!doctype html><meta charset="utf-8"><title>Offline</title>' +
-        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-        '<style>body{font-family:system-ui;padding:24px}</style>' +
-        '<h2>Không có mạng</h2><p>Vui lòng kiểm tra kết nối Internet rồi mở lại ứng dụng.</p>',
-        {
-          status: 503,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
-        }
-      )
-    );
-  }
-}
-
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE);
-  const cached = await cache.match(request, { ignoreVary: true });
-
-  const networkPromise = fetch(request)
-    .then(async response => {
-      if (response && response.ok) {
-        await cache.put(request, response.clone());
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req);
+        const cache = await caches.open(CACHE);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch {
+        const cache = await caches.open(CACHE);
+        return (await cache.match(BASE + 'index.html')) || Response.error();
       }
-      return response;
-    })
-    .catch(() => null);
-
-  return cached || await networkPromise || Response.error();
-}
+    })());
+    return;
+  }
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req, { ignoreVary: true });
+    if (cached) return cached;
+    const res = await fetch(req);
+    if (res.ok && req.method === 'GET') cache.put(req, res.clone());
+    return res;
+  })());
+});
