@@ -3,7 +3,7 @@
 const BASE = new URL('./', self.location).pathname;
 const CACHE_PREFIX = 'evn-toado-shell-';
 const LEGACY_CACHE_PREFIXES = [CACHE_PREFIX, 'toadokh-pwa-'];
-const CACHE_NAME = `${CACHE_PREFIX}v3-20260717`;
+const CACHE_NAME = `${CACHE_PREFIX}v4-20260717`;
 const APP_SHELL = [
   BASE,
   `${BASE}index.html`,

@@ -2,11 +2,11 @@
   'use strict';
 
   const APP_URL = 'https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec';
-  const SHELL_VERSION = '3.0.0-20260717';
-  const LOAD_TIMEOUT_MS = 25_000;
-  const RECOVERY_BUTTON_DELAY_MS = 12_000;
-  const LOG_KEY = 'evn_toado_shell_log_v3';
-  const MAX_LOG_ITEMS = 80;
+  const SHELL_VERSION = '4.0.0-20260717';
+  const LOAD_TIMEOUT_MS = 35_000;
+  const HEARTBEAT_TIMEOUT_MS = 38_000;
+  const LOG_KEY = 'evn_toado_shell_log_v4';
+  const MAX_LOG_ITEMS = 100;
 
   const frame = document.getElementById('appFrame');
   const boot = document.getElementById('boot');
@@ -24,16 +24,12 @@
   let frameLoaded = false;
   let loading = false;
   let hiddenAt = 0;
+  let heartbeatSeen = false;
+  let lastHeartbeatAt = 0;
 
   const nowIso = () => new Date().toISOString();
-
-  function safeStorageGet(key) {
-    try { return localStorage.getItem(key); } catch (_) { return null; }
-  }
-
-  function safeStorageSet(key, value) {
-    try { localStorage.setItem(key, value); } catch (_) { /* Storage may be disabled. */ }
-  }
+  const safeStorageGet = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
+  const safeStorageSet = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
 
   function writeLog(type, detail = '') {
     try {
@@ -41,7 +37,7 @@
       const items = Array.isArray(current) ? current : [];
       items.push({ at: nowIso(), type, detail: String(detail).slice(0, 500) });
       safeStorageSet(LOG_KEY, JSON.stringify(items.slice(-MAX_LOG_ITEMS)));
-    } catch (_) { /* Logging must never break the app. */ }
+    } catch (_) {}
   }
 
   function updateViewportHeight() {
@@ -49,40 +45,53 @@
     document.documentElement.style.setProperty('--app-height', `${Math.max(320, Math.round(height))}px`);
   }
 
-  function setBootState({ message, busy, showActions }) {
+  function setBootState({ message, busy = false, showActions = false }) {
     statusText.textContent = message;
     spinner.hidden = !busy;
     actions.classList.toggle('show', Boolean(showActions));
     boot.classList.remove('hidden');
   }
 
-  function hideBoot() {
-    boot.classList.add('hidden');
-  }
-
-  function clearTimers() {
-    window.clearTimeout(loadTimer);
-    window.clearTimeout(recoveryTimer);
-  }
+  function hideBoot() { boot.classList.add('hidden'); }
+  function clearTimers() { clearTimeout(loadTimer); clearTimeout(recoveryTimer); }
 
   function showTemporaryRecoveryButton(durationMs = 15_000) {
-    window.clearTimeout(recoveryTimer);
+    clearTimeout(recoveryTimer);
     recoveryButton.classList.add('show');
-    recoveryTimer = window.setTimeout(() => recoveryButton.classList.remove('show'), durationMs);
+    recoveryTimer = setTimeout(() => recoveryButton.classList.remove('show'), durationMs);
+  }
+
+  function notifyInnerShellReady() {
+    try {
+      frame.contentWindow?.postMessage({ type: 'EVN_PWA_SHELL_READY', version: SHELL_VERSION }, '*');
+    } catch (_) {}
+  }
+
+  function markHeartbeat(data) {
+    heartbeatSeen = true;
+    lastHeartbeatAt = Date.now();
+    frameLoaded = true;
+    loading = false;
+    clearTimeout(loadTimer);
+    safeStorageSet('evn_toado_last_heartbeat_at', nowIso());
+    writeLog('app_heartbeat', data?.detail || data?.version || '');
+    hideBoot();
+    recoveryButton.classList.remove('show');
   }
 
   function startFrameLoad(reason = 'startup') {
     if (loading) return;
     loading = true;
     frameLoaded = false;
+    heartbeatSeen = false;
+    lastHeartbeatAt = 0;
     clearTimers();
     recoveryButton.classList.remove('show');
 
     if (!navigator.onLine) {
       loading = false;
       setBootState({
-        message: 'Điện thoại đang mất mạng. Ứng dụng sẽ kết nối lại khi có Internet.',
-        busy: false,
+        message: 'Điện thoại đang mất mạng. Bản nháp và ảnh chưa gửi vẫn được giữ trên máy.',
         showActions: true
       });
       netBadge.classList.add('show');
@@ -90,22 +99,19 @@
       return;
     }
 
-    setBootState({ message: 'Đang kết nối ứng dụng…', busy: true, showActions: false });
+    setBootState({ message: 'Đang mở ứng dụng và khôi phục phiên làm việc…', busy: true });
     writeLog('frame_load_start', reason);
-
-    // Gán src bằng JavaScript để luôn có màn hình chờ và cơ chế phục hồi nếu iframe bị lỗi.
     frame.src = APP_URL;
 
-    loadTimer = window.setTimeout(() => {
-      if (frameLoaded) return;
+    loadTimer = setTimeout(() => {
+      if (heartbeatSeen) return;
       loading = false;
       setBootState({
-        message: 'Kết nối quá lâu hoặc ứng dụng bị trình duyệt tạm dừng. Anh/chị hãy nạp lại, dữ liệu trên máy không bị xóa bởi thao tác này.',
-        busy: false,
+        message: 'Ứng dụng chưa phản hồi. Bấm nạp lại; phiên đăng nhập, biểu mẫu và ảnh nháp sẽ tự khôi phục.',
         showActions: true
       });
       recoveryButton.classList.add('show');
-      writeLog('frame_load_timeout', reason);
+      writeLog('heartbeat_boot_timeout', reason);
     }, LOAD_TIMEOUT_MS);
   }
 
@@ -113,21 +119,21 @@
     clearTimers();
     loading = false;
     frameLoaded = false;
-    try { frame.src = 'about:blank'; } catch (_) { /* Ignore. */ }
-    window.setTimeout(() => startFrameLoad(reason), 120);
+    heartbeatSeen = false;
+    try { frame.src = 'about:blank'; } catch (_) {}
+    setTimeout(() => startFrameLoad(reason), 150);
   }
 
   async function repairPwaCache() {
-    setBootState({ message: 'Đang làm sạch cache PWA lỗi…', busy: true, showActions: false });
+    setBootState({ message: 'Đang làm sạch cache PWA lỗi…', busy: true });
     writeLog('repair_start', SHELL_VERSION);
-
     try {
       if ('serviceWorker' in navigator) {
-        const baseUrl = new URL('./', window.location.href).href;
+        const baseUrl = new URL('./', location.href).href;
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations
-          .filter(registration => registration.scope.startsWith(baseUrl))
-          .map(registration => registration.unregister()));
+          .filter(reg => reg.scope.startsWith(baseUrl))
+          .map(reg => reg.unregister()));
       }
       if ('caches' in window) {
         const keys = await caches.keys();
@@ -136,51 +142,36 @@
           .map(key => caches.delete(key)));
       }
       writeLog('repair_success', SHELL_VERSION);
-      window.location.reload();
+      location.reload();
     } catch (error) {
       writeLog('repair_failed', error?.message || error);
-      setBootState({
-        message: 'Không thể tự làm sạch cache. Hãy đóng hẳn ứng dụng rồi mở lại.',
-        busy: false,
-        showActions: true
-      });
+      setBootState({ message: 'Không thể tự làm sạch cache. Đóng hẳn ứng dụng rồi mở lại.', showActions: true });
     }
   }
 
   async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
-
-    const base = location.pathname.endsWith('/')
-      ? location.pathname
-      : location.pathname.replace(/\/[^/]*$/, '/');
-
+    const base = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/\/[^/]*$/, '/');
     try {
-      const registration = await navigator.serviceWorker.register(`${base}sw.js?v=${encodeURIComponent(SHELL_VERSION)}`, {
+      const reg = await navigator.serviceWorker.register(`${base}sw.js?v=${encodeURIComponent(SHELL_VERSION)}`, {
         scope: base,
         updateViaCache: 'none'
       });
-      writeLog('sw_registered', registration.scope);
-      registration.update().catch(() => {});
-    } catch (error) {
-      writeLog('sw_register_failed', error?.message || error);
-    }
+      writeLog('sw_registered', reg.scope);
+      reg.update().catch(() => {});
+    } catch (error) { writeLog('sw_register_failed', error?.message || error); }
   }
 
   frame.addEventListener('load', () => {
-    // about:blank chỉ được dùng rất ngắn trong lúc khôi phục.
     if (frame.src === 'about:blank') return;
-    window.clearTimeout(loadTimer);
     loading = false;
     frameLoaded = true;
-    safeStorageSet('evn_toado_last_loaded_at', nowIso());
-    writeLog('frame_load_success');
-    hideBoot();
-    recoveryButton.classList.remove('show');
-
-    // Gửi tín hiệu không bắt buộc; phiên bản GAS mới có thể dùng để trả heartbeat.
-    try {
-      frame.contentWindow?.postMessage({ type: 'EVN_PWA_SHELL_READY', version: SHELL_VERSION }, 'https://script.google.com');
-    } catch (_) { /* Cross-origin handshake is optional. */ }
+    safeStorageSet('evn_toado_last_frame_load_at', nowIso());
+    writeLog('frame_dom_load');
+    // Không coi sự kiện load là app đã sống: chờ heartbeat từ GAS để phát hiện trang trắng.
+    setBootState({ message: 'Đang khôi phục đăng nhập và dữ liệu nháp…', busy: true });
+    notifyInnerShellReady();
+    setTimeout(notifyInnerShellReady, 1200);
   });
 
   frame.addEventListener('error', () => {
@@ -188,19 +179,25 @@
     loading = false;
     frameLoaded = false;
     writeLog('frame_error');
-    setBootState({
-      message: 'Không tải được ứng dụng. Kiểm tra mạng rồi bấm “Nạp lại ứng dụng”.',
-      busy: false,
-      showActions: true
-    });
+    setBootState({ message: 'Không tải được ứng dụng. Kiểm tra mạng rồi bấm “Nạp lại ứng dụng”.', showActions: true });
     recoveryButton.classList.add('show');
   });
 
   window.addEventListener('message', event => {
     if (!/^https:\/\/(script\.google\.com|[^/]+\.googleusercontent\.com)$/.test(event.origin)) return;
-    if (event.data?.type === 'EVN_APP_HEARTBEAT') {
-      frameLoaded = true;
-      writeLog('app_heartbeat');
+    const data = event.data || {};
+    if (data.type === 'EVN_APP_HEARTBEAT') {
+      markHeartbeat(data);
+    } else if (data.type === 'EVN_APP_BOOTING') {
+      writeLog('inner_booting', data.detail || '');
+      setBootState({ message: 'Ứng dụng đang khởi động…', busy: true });
+    } else if (data.type === 'EVN_APP_ERROR') {
+      writeLog('inner_error', data.detail || '');
+      setBootState({
+        message: 'Ứng dụng gặp lỗi hiển thị. Bấm nạp lại để phục hồi phiên và bản nháp.',
+        showActions: true
+      });
+      recoveryButton.classList.add('show');
     }
   });
 
@@ -208,19 +205,13 @@
     netBadge.classList.remove('show');
     writeLog('network_online');
     if (!frameLoaded && !loading) startFrameLoad('network_restored');
+    else notifyInnerShellReady();
   });
 
   window.addEventListener('offline', () => {
     netBadge.classList.add('show');
     writeLog('network_offline');
-    // Không tự tải lại iframe: tránh làm mất nội dung đang nhập/chụp ảnh chưa gửi.
-    if (!frameLoaded) {
-      setBootState({
-        message: 'Mất kết nối mạng. Không đóng ứng dụng; hãy bật lại mạng rồi tiếp tục.',
-        busy: false,
-        showActions: true
-      });
-    }
+    if (!frameLoaded) setBootState({ message: 'Mất kết nối mạng. Bản nháp và ảnh vẫn được giữ trên máy.', showActions: true });
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -233,43 +224,46 @@
     const hiddenMs = hiddenAt ? Date.now() - hiddenAt : 0;
     writeLog('app_visible', hiddenMs);
     updateViewportHeight();
-
-    // Khi quay lại từ camera, tuyệt đối không tự reload iframe vì sẽ đá người dùng ra.
     if (!navigator.onLine) {
       netBadge.classList.add('show');
     } else if (!frameLoaded && !loading) {
-      setBootState({
-        message: 'Ứng dụng đã bị điện thoại tạm dừng. Bấm nạp lại để khôi phục.',
-        busy: false,
-        showActions: true
-      });
+      setBootState({ message: 'Ứng dụng đã bị điện thoại thu hồi. Bấm nạp lại để tự phục hồi.', showActions: true });
       recoveryButton.classList.add('show');
-    } else if (hiddenMs >= 2_000) {
-      // Hiện tạm nút cứu hộ sau khi quay về từ camera/nền; không tự reload.
-      showTemporaryRecoveryButton();
+    } else {
+      notifyInnerShellReady();
+      if (hiddenMs >= 2000) showTemporaryRecoveryButton();
     }
   });
 
+  // Chỉ cảnh báo, không tự reload. Dữ liệu đang nhập không bao giờ bị shell tự ý xóa.
+  setInterval(() => {
+    if (document.hidden || !navigator.onLine || !heartbeatSeen) return;
+    const age = Date.now() - lastHeartbeatAt;
+    if (age > HEARTBEAT_TIMEOUT_MS) {
+      writeLog('heartbeat_stale', age);
+      setBootState({
+        message: 'Ứng dụng không còn phản hồi, có thể điện thoại đã thu hồi WebView. Bấm nạp lại để khôi phục.',
+        showActions: true
+      });
+      recoveryButton.classList.add('show');
+    }
+  }, 10_000);
+
   window.addEventListener('pageshow', event => {
     updateViewportHeight();
-    if (event.persisted) writeLog('page_restored_from_bfcache');
+    if (event.persisted) { writeLog('page_restored_from_bfcache'); notifyInnerShellReady(); }
   });
-
   window.addEventListener('resize', updateViewportHeight, { passive: true });
   window.visualViewport?.addEventListener('resize', updateViewportHeight, { passive: true });
   window.visualViewport?.addEventListener('scroll', updateViewportHeight, { passive: true });
-
   window.addEventListener('error', event => writeLog('window_error', `${event.message} @ ${event.filename}:${event.lineno}`));
   window.addEventListener('unhandledrejection', event => writeLog('unhandled_rejection', event.reason?.message || event.reason || 'unknown'));
 
   retryButton.addEventListener('click', () => reloadFrame('retry_button'));
-  recoveryButton.addEventListener('click', () => {
-    setBootState({
-      message: 'Chỉ nạp lại khi màn hình đang trắng hoặc không thao tác được.',
-      busy: false,
-      showActions: true
-    });
-  });
+  recoveryButton.addEventListener('click', () => setBootState({
+    message: 'Chỉ nạp lại khi màn hình trắng hoặc không thao tác được. Dữ liệu nháp sẽ tự phục hồi.',
+    showActions: true
+  }));
   repairButton.addEventListener('click', repairPwaCache);
   directButton.href = APP_URL;
 
