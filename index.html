@@ -2,78 +2,223 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Tọa Độ & Ảnh KH</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#0b57a4">
+  <meta name="color-scheme" content="light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Tọa Độ KH">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
 
-  <!-- Manifest & PWA -->
+  <title>Tọa Độ &amp; Ảnh KH</title>
+
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1976D2">
-  <link rel="apple-touch-icon" href="evn_logo.png">
+  <link rel="icon" href="icon-192-any.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icon-192-any.png">
   <link rel="canonical" href="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec">
 
-  <!-- iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-  <!-- CSP: chỉ cho nguồn cần thiết -->
-  <meta http-equiv="Content-Security-Policy"
-        content="
-          default-src 'self';
-          frame-src https://script.google.com https://*.googleusercontent.com;
-          connect-src 'self' https://script.google.com https://*.googleusercontent.com;
-          img-src 'self' data: https:;
-          style-src 'self' 'unsafe-inline';
-          script-src 'self';
-          base-uri 'self';
-          form-action 'none';
-          block-all-mixed-content;
-        ">
+  <!-- Không dùng inline JavaScript để CSP không chặn cơ chế khôi phục. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src https://script.google.com https://*.googleusercontent.com; connect-src 'self' https://script.google.com https://*.googleusercontent.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'; block-all-mixed-content">
 
   <style>
-    html,body{height:100%;margin:0;background:#f6f7fb;font-family:system-ui,Roboto,Arial}
-    .app{position:fixed;inset:0;display:flex;flex-direction:column}
-    #wrap{flex:1;position:relative}
-    iframe{position:absolute;inset:0;border:0;width:100%;height:100%}
-    .offline{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#fff}
-    .offline.show{display:flex}
-    .offline button{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:800;cursor:pointer}
+    :root {
+      --app-height: 100dvh;
+      --evn-blue: #0b57a4;
+      --surface: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --danger: #b42318;
+      --shadow: 0 12px 36px rgba(16, 24, 40, .16);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #eef3f8;
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    body { min-height: var(--app-height); }
+
+    #shell {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: var(--app-height);
+      background: #eef3f8;
+      isolation: isolate;
+    }
+
+    #appFrame {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #ffffff;
+    }
+
+    #boot {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: max(24px, env(safe-area-inset-top)) 22px max(24px, env(safe-area-inset-bottom));
+      background: linear-gradient(180deg, #f7fbff 0%, #edf4fb 100%);
+      transition: opacity .18s ease, visibility .18s ease;
+    }
+
+    #boot.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(430px, 100%);
+      padding: 28px 24px;
+      border: 1px solid rgba(11, 87, 164, .12);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .96);
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .logo {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 16px;
+      object-fit: contain;
+      border-radius: 18px;
+    }
+
+    h1 { margin: 0 0 8px; font-size: 22px; line-height: 1.25; }
+    #statusText { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      margin: 20px auto 0;
+      border: 4px solid #d9e8f6;
+      border-top-color: var(--evn-blue);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .actions {
+      display: none;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .actions.show { display: grid; }
+
+    button, a.action {
+      min-height: 48px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .primary { color: #fff; background: var(--evn-blue); }
+    .secondary { color: var(--evn-blue); background: #edf5fd; border-color: #c8def2; }
+    .danger { color: var(--danger); background: #fff5f4; border-color: #f3c7c3; }
+
+    #netBadge {
+      position: fixed;
+      z-index: 20;
+      top: max(8px, env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%) translateY(-150%);
+      max-width: calc(100% - 24px);
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(180, 35, 24, .94);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(16, 24, 40, .18);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      transition: transform .2s ease;
+      pointer-events: none;
+    }
+
+    #netBadge.show { transform: translateX(-50%) translateY(0); }
+
+    #recoveryButton {
+      position: fixed;
+      z-index: 15;
+      left: max(10px, env(safe-area-inset-left));
+      bottom: max(10px, env(safe-area-inset-bottom));
+      width: 46px;
+      min-height: 46px;
+      padding: 0;
+      display: none;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .65);
+      border-radius: 50%;
+      background: rgba(11, 87, 164, .90);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(16, 24, 40, .25);
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    #recoveryButton.show { display: grid; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <div id="wrap">
-      <!-- Bọc Apps Script bằng iframe -->
-      <iframe id="app"
-        src="https://script.google.com/macros/s/AKfycbz0t4JwFBhgcS6fhLVNIqyFOhTEa3Mb7HjNorepXneZqG_G3J8osKPzHRyeSPb2PGz7/exec"
-        allow="geolocation *; fullscreen *; camera *; microphone *; clipboard-read; clipboard-write; accelerometer; gyroscope; magnetometer"
-        referrerpolicy="no-referrer"></iframe>
+  <main id="shell">
+    <iframe
+      id="appFrame"
+      title="Ứng dụng Tọa Độ và Ảnh Khách Hàng"
+      allow="camera *; microphone *; geolocation *; fullscreen *; clipboard-read *; clipboard-write *; accelerometer *; gyroscope *; magnetometer *"
+      referrerpolicy="strict-origin-when-cross-origin"
+      loading="eager"
+      fetchpriority="high"></iframe>
 
-      <div id="offline" class="offline">
-        <div style="text-align:center">
-          <h2>Không có mạng</h2>
-          <p>Ứng dụng cần kết nối Internet để chạy.</p>
-          <button onclick="location.reload()">Thử lại</button>
+    <section id="boot" aria-live="polite">
+      <div class="card">
+        <img class="logo" src="evn_logo.png" alt="EVN">
+        <h1>Tọa Độ &amp; Ảnh KH</h1>
+        <p id="statusText">Đang kết nối ứng dụng…</p>
+        <div id="spinner" class="spinner" aria-hidden="true"></div>
+        <div id="actions" class="actions">
+          <button id="retryButton" class="primary" type="button">Nạp lại ứng dụng</button>
+          <a id="directButton" class="action secondary" target="_blank" rel="noopener noreferrer">Mở trực tiếp</a>
+          <button id="repairButton" class="danger" type="button">Sửa cache PWA</button>
         </div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
-  <script>
-    // Tính BASE để SW đúng scope kể cả khi host ở subfolder
-    const BASE = (location.pathname.endsWith('/')
-      ? location.pathname
-      : location.pathname.replace(/\/[^/]*$/, '/'));
+  <div id="netBadge" role="status">Mất kết nối mạng – dữ liệu chưa gửi cần được giữ nguyên</div>
+  <button id="recoveryButton" type="button" aria-label="Khôi phục ứng dụng" title="Khôi phục ứng dụng">↻</button>
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE })
-        .then(r => console.log('SW registered:', r.scope))
-        .catch(e => console.warn('SW register failed:', e));
-    }
-
-    const setOfflineUI = on => document.getElementById('offline').classList.toggle('show', !!on);
-    addEventListener('online',  ()=>setOfflineUI(false));
-    addEventListener('offline', ()=>setOfflineUI(true));
-    setOfflineUI(!navigator.onLine);
-  </script>
+  <script src="app.js" defer></script>
 </body>
 </html>

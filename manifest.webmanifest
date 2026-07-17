@@ -1,14 +1,17 @@
 {
+  "id": "./",
   "name": "Tọa Độ & Ảnh KH",
   "short_name": "Tọa Độ KH",
-  "description": "Chụp ảnh & bấm tọa độ khách hàng – Tổ KD",
-  "start_url": ".",
-  "scope": ".",
+  "description": "Chụp ảnh và cập nhật tọa độ khách hàng – Điện lực Thới Bình",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
   "dir": "ltr",
-  "lang": "vi",
-  "theme_color": "#1976D2",
-  "background_color": "#ffffff",
+  "lang": "vi-VN",
+  "theme_color": "#0b57a4",
+  "background_color": "#eef3f8",
   "icons": [
     {
       "src": "icon-192-any.png",
